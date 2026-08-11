@@ -95,12 +95,12 @@ jobs:
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
-          EC2_SSH_KEY_B64: ${{ secrets.EC2_SSH_KEY_B64 }}
+          EC2_SSH_KEY_HEX: ${{ secrets.EC2_SSH_KEY_HEX }}
         run: |
           set -euo pipefail
 
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
 
           CLEAN_HOST="$(printf '%s' "$EC2_HOST" | tr -d '\r\n ')"
           CLEAN_USER="$(printf '%s' "$EC2_USER" | tr -d '\r\n ')"
@@ -115,15 +115,16 @@ jobs:
             exit 1
           fi
 
-          if [ -z "$EC2_SSH_KEY_B64" ]; then
-            echo "EC2_SSH_KEY_B64 is empty"
+          if [ -z "$EC2_SSH_KEY_HEX" ]; then
+            echo "EC2_SSH_KEY_HEX is empty"
             exit 1
           fi
 
-          printf '%s' "$EC2_SSH_KEY_B64" | tr -d '\r\n ' | base64 --decode > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
+          python3 -c 'import os, pathlib; pathlib.Path.home().joinpath(".ssh/id_ed25519").write_bytes(bytes.fromhex(os.environ["EC2_SSH_KEY_HEX"]))'
 
-          if ! ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null 2>&1; then
+          chmod 600 "$HOME/.ssh/id_ed25519"
+
+          if ! ssh-keygen -y -f "$HOME/.ssh/id_ed25519" > /dev/null 2>&1; then
             echo "Decoded EC2 SSH key is invalid"
             exit 1
           fi
@@ -136,11 +137,9 @@ jobs:
       - name: Test SSH connection
         run: |
           ssh \
-            -i ~/.ssh/id_ed25519 \
+            -i "$HOME/.ssh/id_ed25519" \
             -o BatchMode=yes \
             -o ConnectTimeout=15 \
-            -o ServerAliveInterval=5 \
-            -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=accept-new \
             "$CLEAN_EC2_USER@$CLEAN_EC2_HOST" \
             "echo 'SSH connection successful'"
@@ -148,22 +147,23 @@ jobs:
       - name: Deploy
         run: |
           ssh \
-            -i ~/.ssh/id_ed25519 \
+            -i "$HOME/.ssh/id_ed25519" \
             -o BatchMode=yes \
             -o ConnectTimeout=15 \
-            -o ServerAliveInterval=5 \
-            -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=accept-new \
             "$CLEAN_EC2_USER@$CLEAN_EC2_HOST" 'bash -se' <<'EOF'
           set -e
 
-          cd ~/KBO_Predictor
+          cd "$HOME/KBO_Predictor"
 
           echo "=== Pull latest source ==="
           git pull --ff-only origin main
 
-          echo "=== Build and start containers ==="
-          docker compose up -d --build --remove-orphans
+          echo "=== Build Docker images ==="
+          docker compose build backend frontend
+
+          echo "=== Start database and backend ==="
+          docker compose up -d db backend
 
           echo "=== Wait for backend ==="
           for i in $(seq 1 36); do
@@ -182,7 +182,7 @@ jobs:
             sleep 5
           done
 
-          echo "=== Recreate frontend after backend is ready ==="
+          echo "=== Start frontend ==="
           docker compose up -d --force-recreate frontend
 
           echo "=== Wait for frontend ==="
@@ -204,4 +204,6 @@ jobs:
 
           echo "=== Final container status ==="
           docker compose ps
+
+          echo "=== Deployment completed ==="
           EOF
