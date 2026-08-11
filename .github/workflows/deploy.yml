@@ -80,14 +80,14 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-    deploy:
+  deploy:
     name: Deploy to EC2
     runs-on: ubuntu-latest
+
     needs:
       - backend-test
       - frontend-build
 
-    # PR에서는 테스트만 하고 실제 배포는 하지 않음
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
@@ -102,11 +102,9 @@ jobs:
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          # Windows CRLF가 섞여도 정상적인 private key로 저장
           printf '%s\n' "$EC2_SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-          # HOST/USER의 숨은 줄바꿈/공백 제거
           CLEAN_HOST="$(printf '%s' "$EC2_HOST" | tr -d '\r\n ')"
           CLEAN_USER="$(printf '%s' "$EC2_USER" | tr -d '\r\n ')"
 
@@ -120,13 +118,9 @@ jobs:
             exit 1
           fi
 
-          echo "SSH host configured."
-          echo "SSH user configured."
-
           ssh-keyscan -T 10 -H "$CLEAN_HOST" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-          # 다음 step에서 사용
           echo "CLEAN_EC2_HOST=$CLEAN_HOST" >> "$GITHUB_ENV"
           echo "CLEAN_EC2_USER=$CLEAN_USER" >> "$GITHUB_ENV"
 
@@ -154,7 +148,7 @@ jobs:
             echo "=== Build and start containers ==="
             docker compose up -d --build --remove-orphans
 
-            echo "=== Wait for application ==="
+            echo "=== Wait for backend ==="
             for i in $(seq 1 36); do
               if curl -fsS http://localhost/actuator/health | grep -q '"status":"UP"'; then
                 echo "Backend health check passed."
@@ -171,8 +165,22 @@ jobs:
               sleep 5
             done
 
-            echo "=== Check frontend ==="
-            curl -fsS http://localhost > /dev/null
+            echo "=== Wait for frontend ==="
+            for i in $(seq 1 24); do
+              if curl -fsS http://localhost > /dev/null; then
+                echo "Frontend health check passed."
+                break
+              fi
+
+              if [ "$i" -eq 24 ]; then
+                echo "Frontend health check failed."
+                docker compose ps
+                docker compose logs --tail=100 frontend
+                exit 1
+              fi
+
+              sleep 5
+            done
 
             echo "=== Container status ==="
             docker compose ps
