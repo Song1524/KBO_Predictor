@@ -47,7 +47,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
           cache: gradle
 
       - name: Grant Gradle permission
@@ -68,7 +68,7 @@ jobs:
       - name: Set up Node.js 22
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -91,7 +91,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
-            - name: Configure SSH
+      - name: Configure SSH
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
@@ -115,7 +115,12 @@ jobs:
             exit 1
           fi
 
-          printf '%s' "$EC2_SSH_KEY_B64" | base64 --decode > ~/.ssh/id_ed25519
+          if [ -z "$EC2_SSH_KEY_B64" ]; then
+            echo "EC2_SSH_KEY_B64 is empty"
+            exit 1
+          fi
+
+          printf '%s' "$EC2_SSH_KEY_B64" | tr -d '\r\n ' | base64 --decode > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
           if ! ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null 2>&1; then
@@ -146,55 +151,57 @@ jobs:
             -i ~/.ssh/id_ed25519 \
             -o BatchMode=yes \
             -o ConnectTimeout=15 \
+            -o ServerAliveInterval=5 \
+            -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=accept-new \
-            "$CLEAN_EC2_USER@$CLEAN_EC2_HOST" << 'EOF'
-            set -e
+            "$CLEAN_EC2_USER@$CLEAN_EC2_HOST" 'bash -se' <<'EOF'
+          set -e
 
-            cd ~/KBO_Predictor
+          cd ~/KBO_Predictor
 
-            echo "=== Pull latest source ==="
-            git pull --ff-only origin main
+          echo "=== Pull latest source ==="
+          git pull --ff-only origin main
 
-            echo "=== Build and start containers ==="
-            docker compose up -d --build --remove-orphans
+          echo "=== Build and start containers ==="
+          docker compose up -d --build --remove-orphans
 
-            echo "=== Wait for backend ==="
-            for i in $(seq 1 36); do
-              if curl -fsS http://localhost/actuator/health | grep -q '"status":"UP"'; then
-                echo "Backend health check passed."
-                break
-              fi
+          echo "=== Wait for backend ==="
+          for i in $(seq 1 36); do
+            if curl -fsS http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+              echo "Backend health check passed."
+              break
+            fi
 
-              if [ "$i" -eq 36 ]; then
-                echo "Backend health check failed."
-                docker compose ps
-                docker compose logs --tail=100 backend
-                exit 1
-              fi
+            if [ "$i" -eq 36 ]; then
+              echo "Backend health check failed."
+              docker compose ps
+              docker compose logs --tail=100 backend
+              exit 1
+            fi
 
-              sleep 5
-            done
+            sleep 5
+          done
 
-            echo "=== Ensure frontend is running ==="
-            docker compose up -d frontend
+          echo "=== Recreate frontend after backend is ready ==="
+          docker compose up -d --force-recreate frontend
 
-            echo "=== Wait for frontend ==="
-            for i in $(seq 1 24); do
-              if curl -fsS http://localhost > /dev/null; then
-                echo "Frontend health check passed."
-                break
-              fi
+          echo "=== Wait for frontend ==="
+          for i in $(seq 1 24); do
+            if curl -fsS http://localhost > /dev/null; then
+              echo "Frontend health check passed."
+              break
+            fi
 
-              if [ "$i" -eq 24 ]; then
-                echo "Frontend health check failed."
-                docker compose ps
-                docker compose logs --tail=100 frontend
-                exit 1
-              fi
+            if [ "$i" -eq 24 ]; then
+              echo "Frontend health check failed."
+              docker compose ps
+              docker compose logs --tail=100 frontend
+              exit 1
+            fi
 
-              sleep 5
-            done
+            sleep 5
+          done
 
-            echo "=== Container status ==="
-            docker compose ps
+          echo "=== Final container status ==="
+          docker compose ps
           EOF
