@@ -90,21 +90,60 @@ jobs:
     # PR에서는 테스트만 하고 실제 배포는 하지 않음
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
-    steps:
+        steps:
       - name: Configure SSH
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
+          set -euo pipefail
+
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_ed25519
+          # Windows CRLF가 섞여도 정상적인 private key로 저장
+          printf '%s\n' "$EC2_SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
+          # HOST/USER의 숨은 줄바꿈/공백 제거
+          CLEAN_HOST="$(printf '%s' "$EC2_HOST" | tr -d '\r\n ')"
+          CLEAN_USER="$(printf '%s' "$EC2_USER" | tr -d '\r\n ')"
+
+          if [ -z "$CLEAN_HOST" ]; then
+            echo "EC2_HOST is empty"
+            exit 1
+          fi
+
+          if [ -z "$CLEAN_USER" ]; then
+            echo "EC2_USER is empty"
+            exit 1
+          fi
+
+          echo "SSH host configured."
+          echo "SSH user configured."
+
+          ssh-keyscan -T 10 -H "$CLEAN_HOST" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
+
+          # 다음 step에서 사용
+          echo "CLEAN_EC2_HOST=$CLEAN_HOST" >> "$GITHUB_ENV"
+          echo "CLEAN_EC2_USER=$CLEAN_USER" >> "$GITHUB_ENV"
+
+      - name: Test SSH connection
+        run: |
+          ssh \
+            -i ~/.ssh/id_ed25519 \
+            -o BatchMode=yes \
+            -o ConnectTimeout=10 \
+            "$CLEAN_EC2_USER@$CLEAN_EC2_HOST" \
+            "echo 'SSH connection successful'"
 
       - name: Deploy
         run: |
-          ssh "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" << 'EOF'
+          ssh \
+            -i ~/.ssh/id_ed25519 \
+            "$CLEAN_EC2_USER@$CLEAN_EC2_HOST" << 'EOF'
             set -e
 
             cd ~/KBO_Predictor
