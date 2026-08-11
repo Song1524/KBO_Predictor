@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+
+backend/build/
+backend/.gradle/
+backend/db/backups/
+backend/ml/.venv/
+backend/ml/data/
+frontend/node_modules/
+frontend/dist/
+.idea/
+*.log
+
+.pnpm-store/
+*.zip

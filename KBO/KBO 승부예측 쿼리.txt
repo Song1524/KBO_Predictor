@@ -1,0 +1,403 @@
+CREATE TABLE `CHAT_ROOMS` (
+	`id`	BIGINT	NOT NULL,
+	`game_id`	BIGINT	NULL,
+	`status`	VARCHAR(50)	NULL,
+	`created_at`	DATETIME	NULL
+);
+
+CREATE TABLE `POINT_HISTORIES` (
+	`id`	BIGINT	NOT NULL,
+	`user_id`	BIGINT	NULL,
+	`game_id`	BIGINT	NULL,
+	`user_prediction_id`	BIGINT	NULL,
+	`settlement_batch_id`	BIGINT	NULL,
+	`point_change`	INT	NULL,
+	`balance_after`	INT	NULL,
+	`type`	VARCHAR(50)	NULL,
+	`description`	TEXT	NULL,
+	`created_at`	DATETIME	NULL
+);
+
+CREATE TABLE `BATTER_STATS` (
+	`id`	BIGINT	NOT NULL,
+	`player_id`	BIGINT	NULL,
+	`season`	INT	NULL,
+	`stat_date`	DATE	NULL,
+	`games`	INT	NULL,
+	`batting_avg`	DECIMAL(5,3)	NULL,
+	`obp`	DECIMAL(5,3)	NULL,
+	`slg`	DECIMAL(5,3)	NULL,
+	`ops`	DECIMAL(5,3)	NULL,
+	`homerun`	INT	NULL,
+	`rbi`	INT	NULL,
+	`stolen_base`	INT	NULL,
+	`source_type`	VARCHAR(50)	NULL,
+	`collected_at`	DATETIME	NULL
+);
+
+CREATE TABLE `ADMIN_ACTION_LOGS` (
+	`id`	BIGINT	NOT NULL,
+	`admin_user_id`	BIGINT	NULL,
+	`action_type`	VARCHAR(50)	NULL,
+	`target_type`	VARCHAR(50)	NULL,
+	`target_id`	BIGINT	NULL,
+	`before_value`	TEXT	NULL,
+	`after_value`	TEXT	NULL,
+	`created_at`	DATETIME	NULL
+);
+
+CREATE TABLE `STARTING_PITCHERS` (
+	`id`	BIGINT	NOT NULL,
+	`game_id`	BIGINT	NULL,
+	`team_id`	BIGINT	NULL,
+	`pitcher_id`	BIGINT	NULL,
+	`announced_at`	DATETIME	NULL,
+	`created_at`	DATETIME	NULL
+);
+
+CREATE TABLE `MESSAGE_REPORTS` (
+	`id`	BIGINT	NOT NULL,
+	`message_id`	BIGINT	NULL,
+	`reporter_id`	BIGINT	NULL,
+	`reason`	VARCHAR(255)	NULL,
+	`status`	VARCHAR(50)	NULL,
+	`created_at`	DATETIME	NULL
+);
+
+CREATE TABLE `HEAD_TO_HEAD_STATS` (
+	`id`	BIGINT	NOT NULL,
+	`season`	INT	NULL,
+	`team_id`	BIGINT	NULL,
+	`opponent_team_id`	BIGINT	NULL,
+	`win`	INT	NULL,
+	`lose`	INT	NULL,
+	`draw`	INT	NULL,
+	`updated_at`	DATETIME	NULL
+);
+
+CREATE TABLE `CHAT_MESSAGES` (
+	`id`	BIGINT	NOT NULL,
+	`chat_room_id`	BIGINT	NULL,
+	`user_id`	BIGINT	NULL,
+	`original_message`	TEXT	NULL,
+	`masked_message`	TEXT	NULL,
+	`status`	VARCHAR(50)	NULL,
+	`created_at`	DATETIME	NULL
+);
+
+CREATE TABLE `BADGES` (
+	`id`	BIGINT	NOT NULL,
+	`name`	VARCHAR(100)	NULL,
+	`description`	TEXT	NULL,
+	`condition_type`	VARCHAR(100)	NULL,
+	`created_at`	DATETIME	NULL
+);
+
+CREATE TABLE `LINEUPS` (
+	`id`	BIGINT	NOT NULL,
+	`game_id`	BIGINT	NULL,
+	`team_id`	BIGINT	NULL,
+	`player_id`	BIGINT	NULL,
+	`batting_order`	INT	NULL,
+	`field_position`	VARCHAR(50)	NULL,
+	`created_at`	DATETIME	NULL
+);
+
+CREATE TABLE `USERS` (
+	`id`	BIGINT	NOT NULL,
+	`email`	VARCHAR(255)	NULL,
+	`password`	VARCHAR(255)	NULL,
+	`nickname`	VARCHAR(100)	NULL,
+	`provider`	VARCHAR(50)	NULL,
+	`favorite_team_id`	BIGINT	NULL,
+	`point`	INT	NULL,
+	`role`	VARCHAR(50)	NULL,
+	`status`	VARCHAR(50)	NULL,
+	`created_at`	DATETIME	NULL,
+	`updated_at`	DATETIME	NULL
+);
+
+CREATE TABLE `SIMULATION_RESULTS` (
+	`id`	BIGINT	NOT NULL,
+	`user_id`	BIGINT	NULL,
+	`game_id`	BIGINT	NULL,
+	`input_snapshot`	TEXT	NULL,
+	`result_snapshot`	TEXT	NULL,
+	`point_cost`	INT	NULL,
+	`created_at`	DATETIME	NULL
+);
+
+CREATE TABLE `GAMES` (
+	`id`	BIGINT	NOT NULL,
+	`season`	INT	NULL,
+	`game_date`	DATE	NULL,
+	`game_time`	TIME	NULL,
+	`home_team_id`	BIGINT	NULL,
+	`away_team_id`	BIGINT	NULL,
+	`stadium`	VARCHAR(100)	NULL,
+	`status`	VARCHAR(50)	NULL,
+	`home_score`	INT	NULL,
+	`away_score`	INT	NULL,
+	`winner_team_id`	BIGINT	NULL,
+	`prediction_close_at`	DATETIME	NULL,
+	`cancel_reason`	VARCHAR(255)	NULL,
+	`created_at`	DATETIME	NULL,
+	`updated_at`	DATETIME	NULL
+);
+
+CREATE TABLE `BAD_WORDS` (
+	`id`	BIGINT	NOT NULL,
+	`word`	VARCHAR(100)	NULL,
+	`replacement`	VARCHAR(100)	NULL,
+	`active`	BOOLEAN	NULL,
+	`created_at`	DATETIME	NULL
+);
+
+CREATE TABLE `SETTLEMENT_BATCHES` (
+	`id`	BIGINT	NOT NULL,
+	`game_id`	BIGINT	NULL,
+	`status`	VARCHAR(50)	NULL,
+	`total_targets`	INT	NULL,
+	`success_count`	INT	NULL,
+	`fail_count`	INT	NULL,
+	`executed_by`	BIGINT	NULL,
+	`executed_at`	DATETIME	NULL,
+	`rolled_back_at`	DATETIME	NULL
+);
+
+CREATE TABLE `NOTIFICATIONS` (
+	`id`	BIGINT	NOT NULL,
+	`user_id`	BIGINT	NULL,
+	`game_id`	BIGINT	NULL,
+	`type`	VARCHAR(50)	NULL,
+	`content`	TEXT	NULL,
+	`read_status`	BOOLEAN	NULL,
+	`created_at`	DATETIME	NULL
+);
+
+CREATE TABLE `USER_BADGES` (
+	`id`	BIGINT	NOT NULL,
+	`user_id`	BIGINT	NULL,
+	`badge_id`	BIGINT	NULL,
+	`acquired_at`	DATETIME	NULL
+);
+
+CREATE TABLE `SYSTEM_PREDICTIONS` (
+	`id`	BIGINT	NOT NULL,
+	`game_id`	BIGINT	NULL,
+	`predicted_winner_team_id`	BIGINT	NULL,
+	`home_win_probability`	DECIMAL(5,2)	NULL,
+	`away_win_probability`	DECIMAL(5,2)	NULL,
+	`home_score_point`	DECIMAL(10,2)	NULL,
+	`away_score_point`	DECIMAL(10,2)	NULL,
+	`reason`	TEXT	NULL,
+	`created_at`	DATETIME	NULL
+);
+
+CREATE TABLE `PITCHER_STATS` (
+	`id`	BIGINT	NOT NULL,
+	`player_id`	BIGINT	NULL,
+	`season`	INT	NULL,
+	`stat_date`	DATE	NULL,
+	`games`	INT	NULL,
+	`era`	DECIMAL(5,2)	NULL,
+	`whip`	DECIMAL(5,2)	NULL,
+	`innings`	DECIMAL(5,1)	NULL,
+	`wins`	INT	NULL,
+	`losses`	INT	NULL,
+	`strikeouts`	INT	NULL,
+	`source_type`	VARCHAR(50)	NULL,
+	`collected_at`	DATETIME	NULL
+);
+
+CREATE TABLE `RANKINGS` (
+	`id`	BIGINT	NOT NULL,
+	`user_id`	BIGINT	NULL,
+	`team_id`	BIGINT	NULL,
+	`period_type`	VARCHAR(50)	NULL,
+	`period_start`	DATE	NULL,
+	`period_end`	DATE	NULL,
+	`rank_no`	INT	NULL,
+	`total_point`	INT	NULL,
+	`prediction_count`	INT	NULL,
+	`correct_count`	INT	NULL,
+	`accuracy_rate`	DECIMAL(5,2)	NULL,
+	`calculated_at`	DATETIME	NULL
+);
+
+CREATE TABLE `PLAYERS` (
+	`id`	BIGINT	NOT NULL,
+	`team_id`	BIGINT	NULL,
+	`kbo_player_id`	VARCHAR(100)	NULL,
+	`name`	VARCHAR(100)	NULL,
+	`position`	VARCHAR(50)	NULL,
+	`active`	BOOLEAN	NULL,
+	`created_at`	DATETIME	NULL,
+	`updated_at`	DATETIME	NULL
+);
+
+CREATE TABLE `PREDICTION_FACTORS` (
+	`id`	BIGINT	NOT NULL,
+	`system_prediction_id`	BIGINT	NULL,
+	`factor_name`	VARCHAR(100)	NULL,
+	`home_value`	DECIMAL(10,2)	NULL,
+	`away_value`	DECIMAL(10,2)	NULL,
+	`weight`	DECIMAL(5,2)	NULL,
+	`contribution`	DECIMAL(10,2)	NULL
+);
+
+CREATE TABLE `DATA_COLLECT_LOGS` (
+	`id`	BIGINT	NOT NULL,
+	`source_type`	VARCHAR(50)	NULL,
+	`target_type`	VARCHAR(50)	NULL,
+	`target_date`	DATE	NULL,
+	`status`	VARCHAR(50)	NULL,
+	`message`	TEXT	NULL,
+	`collected_at`	DATETIME	NULL
+);
+
+CREATE TABLE `TEAM_STATS` (
+	`id`	BIGINT	NOT NULL,
+	`team_id`	BIGINT	NULL,
+	`season`	INT	NULL,
+	`stat_date`	DATE	NULL,
+	`win`	INT	NULL,
+	`lose`	INT	NULL,
+	`draw`	INT	NULL,
+	`win_rate`	DECIMAL(5,3)	NULL,
+	`recent_10_win`	INT	NULL,
+	`recent_10_lose`	INT	NULL,
+	`home_win`	INT	NULL,
+	`home_lose`	INT	NULL,
+	`away_win`	INT	NULL,
+	`away_lose`	INT	NULL,
+	`batting_avg`	DECIMAL(5,3)	NULL,
+	`era`	DECIMAL(5,2)	NULL,
+	`collected_at`	DATETIME	NULL
+);
+
+CREATE TABLE `USER_PREDICTIONS` (
+	`id`	BIGINT	NOT NULL,
+	`user_id`	BIGINT	NULL,
+	`game_id`	BIGINT	NULL,
+	`selected_team_id`	BIGINT	NULL,
+	`point_amount`	INT	NULL,
+	`is_correct`	BOOLEAN	NULL,
+	`settled`	BOOLEAN	NULL,
+	`created_at`	DATETIME	NULL,
+	`updated_at`	DATETIME	NULL
+);
+
+CREATE TABLE `TEAMS` (
+	`id`	BIGINT	NOT NULL,
+	`name`	VARCHAR(100)	NULL,
+	`short_name`	VARCHAR(50)	NULL,
+	`primary_color`	VARCHAR(50)	NULL,
+	`secondary_color`	VARCHAR(50)	NULL,
+	`created_at`	DATETIME	NULL
+);
+
+ALTER TABLE `CHAT_ROOMS` ADD CONSTRAINT `PK_CHAT_ROOMS` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `POINT_HISTORIES` ADD CONSTRAINT `PK_POINT_HISTORIES` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `BATTER_STATS` ADD CONSTRAINT `PK_BATTER_STATS` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `ADMIN_ACTION_LOGS` ADD CONSTRAINT `PK_ADMIN_ACTION_LOGS` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `STARTING_PITCHERS` ADD CONSTRAINT `PK_STARTING_PITCHERS` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `MESSAGE_REPORTS` ADD CONSTRAINT `PK_MESSAGE_REPORTS` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `HEAD_TO_HEAD_STATS` ADD CONSTRAINT `PK_HEAD_TO_HEAD_STATS` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `CHAT_MESSAGES` ADD CONSTRAINT `PK_CHAT_MESSAGES` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `BADGES` ADD CONSTRAINT `PK_BADGES` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `LINEUPS` ADD CONSTRAINT `PK_LINEUPS` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `USERS` ADD CONSTRAINT `PK_USERS` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `SIMULATION_RESULTS` ADD CONSTRAINT `PK_SIMULATION_RESULTS` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `GAMES` ADD CONSTRAINT `PK_GAMES` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `BAD_WORDS` ADD CONSTRAINT `PK_BAD_WORDS` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `SETTLEMENT_BATCHES` ADD CONSTRAINT `PK_SETTLEMENT_BATCHES` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `NOTIFICATIONS` ADD CONSTRAINT `PK_NOTIFICATIONS` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `USER_BADGES` ADD CONSTRAINT `PK_USER_BADGES` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `SYSTEM_PREDICTIONS` ADD CONSTRAINT `PK_SYSTEM_PREDICTIONS` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `PITCHER_STATS` ADD CONSTRAINT `PK_PITCHER_STATS` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `RANKINGS` ADD CONSTRAINT `PK_RANKINGS` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `PLAYERS` ADD CONSTRAINT `PK_PLAYERS` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `PREDICTION_FACTORS` ADD CONSTRAINT `PK_PREDICTION_FACTORS` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `DATA_COLLECT_LOGS` ADD CONSTRAINT `PK_DATA_COLLECT_LOGS` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `TEAM_STATS` ADD CONSTRAINT `PK_TEAM_STATS` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `USER_PREDICTIONS` ADD CONSTRAINT `PK_USER_PREDICTIONS` PRIMARY KEY (
+	`id`
+);
+
+ALTER TABLE `TEAMS` ADD CONSTRAINT `PK_TEAMS` PRIMARY KEY (
+	`id`
+);
+

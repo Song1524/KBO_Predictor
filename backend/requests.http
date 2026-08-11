@@ -1,0 +1,54 @@
+@loginEmail = user@example.com
+@loginPassword = replace-with-local-password
+
+### 로컬 계정 로그인 (세션 쿠키가 이후 요청에 사용됨)
+POST http://localhost:8080/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{loginEmail}}",
+  "password": "{{loginPassword}}"
+}
+
+### 로그인 사용자 조회
+GET http://localhost:8080/api/auth/me
+
+### 로그인 사용자의 승부예측 참여
+POST http://localhost:8080/api/user-predictions
+Content-Type: application/json
+
+{
+  "gameId": 1,
+  "selectedOutcome": "HOME_WIN",
+  "pointAmount": 100
+}
+
+### 로그인 사용자의 예측 내역
+GET http://localhost:8080/api/user-predictions/me
+
+### 로그인 사용자의 포인트 증감 내역
+GET http://localhost:8080/api/points/me/history
+
+### 경기별 사용자 배당 조회
+GET http://localhost:8080/api/games/1/odds
+
+### 경기 예측 정산 또는 취소 경기 환불
+POST http://localhost:8080/api/games/1/settlement
+
+### 로그아웃
+POST http://localhost:8080/api/auth/logout
+
+### KBO 공식 팀 통계 수동 동기화 (ADMIN 세션 필요)
+POST http://localhost:8080/api/admin/data/team-stats/sync
+
+### KBO 공식 선발투수 수동 동기화 (ADMIN 세션 필요, date 생략 시 오늘)
+POST http://localhost:8080/api/admin/data/starting-pitchers/sync?date=2026-08-11
+
+### 경기 한 건 시스템 예측 생성/갱신 (ADMIN 세션 필요)
+POST http://localhost:8080/api/admin/predictions/generate?gameId=10
+
+### 날짜별 시스템 예측 일괄 생성/갱신 (ADMIN 세션 필요)
+POST http://localhost:8080/api/admin/predictions/generate?date=2026-08-11
+
+### Baseline v1 과거 경기 평가 (ADMIN 세션 필요)
+GET http://localhost:8080/api/admin/predictions/evaluation

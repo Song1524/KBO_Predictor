@@ -1,0 +1,32 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  flyway:
+    placeholders:
+      removeLegacyTestUser: true
+
+server:
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      timeout: ${SESSION_TIMEOUT:2h}
+      cookie:
+        secure: ${SESSION_COOKIE_SECURE:true}
+        same-site: lax
+
+app:
+  web:
+    cors:
+      allowed-origins: ${APP_FRONTEND_ORIGIN}
+
+logging:
+  level:
+    root: info
+    org.hibernate.SQL: warn
+    org.hibernate.orm.jdbc.bind: warn
+    org.springframework.security: info

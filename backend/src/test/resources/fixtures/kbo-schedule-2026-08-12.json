@@ -1,0 +1,91 @@
+{
+  "colgroup": [],
+  "headers": [],
+  "rows": [
+    {
+      "row": [
+        { "Text": "08.12(수)", "Class": "day" },
+        { "Text": "<b>18:30</b>", "Class": "time" },
+        { "Text": "<span>LG</span><em><span>vs</span></em><span>두산</span>", "Class": "play" },
+        { "Text": "<a href='/Schedule/GameCenter/Main.aspx?gameDate=20260812&gameId=20260812LGOB0&section=START_PIT'>프리뷰</a>", "Class": "relay" },
+        { "Text": "", "Class": "" },
+        { "Text": "", "Class": "" },
+        { "Text": "", "Class": "" },
+        { "Text": "잠실", "Class": "" },
+        { "Text": "-", "Class": "" }
+      ]
+    },
+    {
+      "row": [
+        { "Text": "<b>18:30</b>", "Class": "time" },
+        { "Text": "<span>한화</span><em><span class=\"lose\">2</span><span>vs</span><span class=\"win\">5</span></em><span>KT</span>", "Class": "play" },
+        { "Text": "<a href='/Schedule/GameCenter/Main.aspx?gameDate=20260812&gameId=20260812HHKT0&section=REVIEW'>리뷰</a>", "Class": "relay" },
+        { "Text": "", "Class": "" },
+        { "Text": "", "Class": "" },
+        { "Text": "", "Class": "" },
+        { "Text": "수원", "Class": "" },
+        { "Text": "-", "Class": "" }
+      ]
+    },
+    {
+      "row": [
+        { "Text": "<b>18:30</b>", "Class": "time" },
+        { "Text": "<span>KIA</span><em><span class=\"win\">7</span><span>vs</span><span class=\"lose\">3</span></em><span>NC</span>", "Class": "play" },
+        { "Text": "<a href='/Schedule/GameCenter/Main.aspx?gameDate=20260812&gameId=20260812HTNC0&section=REVIEW'>리뷰</a>", "Class": "relay" },
+        { "Text": "", "Class": "" },
+        { "Text": "", "Class": "" },
+        { "Text": "", "Class": "" },
+        { "Text": "창원", "Class": "" },
+        { "Text": "-", "Class": "" }
+      ]
+    },
+    {
+      "row": [
+        { "Text": "<b>18:30</b>", "Class": "time" },
+        { "Text": "<span>SSG</span><em><span class=\"same\">2</span><span>vs</span><span class=\"same\">2</span></em><span>키움</span>", "Class": "play" },
+        { "Text": "<a href='/Schedule/GameCenter/Main.aspx?gameDate=20260812&gameId=20260812SKWO0&section=REVIEW'>리뷰</a>", "Class": "relay" },
+        { "Text": "", "Class": "" },
+        { "Text": "", "Class": "" },
+        { "Text": "", "Class": "" },
+        { "Text": "고척", "Class": "" },
+        { "Text": "-", "Class": "" }
+      ]
+    },
+    {
+      "row": [
+        { "Text": "<b>19:30</b>", "Class": "time" },
+        { "Text": "<span>LG</span><em><span>1</span><span>vs</span><span>3</span></em><span>두산</span>", "Class": "play" },
+        { "Text": "<a href='/Schedule/GameCenter/Main.aspx?gameDate=20260812&gameId=20260812LGOB1&section=LIVE'>중계</a>", "Class": "relay" },
+        { "Text": "", "Class": "" },
+        { "Text": "", "Class": "" },
+        { "Text": "", "Class": "" },
+        { "Text": "잠실", "Class": "" },
+        { "Text": "-", "Class": "" }
+      ]
+    },
+    {
+      "row": [
+        { "Text": "<b>18:30</b>", "Class": "time" },
+        { "Text": "<span>삼성</span><em><span>vs</span></em><span>롯데</span>", "Class": "play" },
+        { "Text": "", "Class": "relay" },
+        { "Text": "", "Class": "" },
+        { "Text": "", "Class": "" },
+        { "Text": "", "Class": "" },
+        { "Text": "사직", "Class": "" },
+        { "Text": "우천취소", "Class": "" }
+      ]
+    },
+    {
+      "row": [
+        { "Text": "<b>18:30</b>", "Class": "time" },
+        { "Text": "<span>알수없음</span><em><span>vs</span></em><span>LG</span>", "Class": "play" },
+        { "Text": "", "Class": "relay" },
+        { "Text": "", "Class": "" },
+        { "Text": "", "Class": "" },
+        { "Text": "", "Class": "" },
+        { "Text": "잠실", "Class": "" },
+        { "Text": "-", "Class": "" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+spring:
+  config:
+    activate:
+      on-profile: test
+  datasource:
+    url: ${TEST_DB_URL:jdbc:mysql://localhost:3306/kbo_predictor_test?createDatabaseIfNotExist=true&connectionTimeZone=Asia/Seoul&characterEncoding=UTF-8}
+    username: ${TEST_DB_USERNAME:root}
+    password: ${TEST_DB_PASSWORD:}
+  flyway:
+    placeholders:
+      removeLegacyTestUser: true
+
+server:
+  servlet:
+    session:
+      timeout: 1h
+      cookie:
+        secure: false
+        same-site: lax
+
+app:
+  web:
+    cors:
+      allowed-origins: http://localhost:5173
+  odds:
+    closing-scheduler:
+      enabled: false
+  prediction:
+    history-finalization-scheduler:
+      enabled: false
+  kbo-data:
+    sync-scheduler:
+      enabled: false
+    pregame-scheduler:
+      enabled: false
+
+logging:
+  level:
+    org.hibernate.SQL: warn
+    org.hibernate.orm.jdbc.bind: warn

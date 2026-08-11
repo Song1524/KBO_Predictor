@@ -1,0 +1,68 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@theme inline {
+  --font-sans: Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+  --font-mono: "JetBrains Mono", "Roboto Mono", monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-team-navy: var(--team-navy);
+  --color-team-red: var(--team-red);
+  --color-team-blue: var(--team-blue);
+  --color-team-orange: var(--team-orange);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+}
+
+:root {
+  color-scheme: light;
+  --background: oklch(0.975 0.006 250);
+  --foreground: oklch(0.19 0.035 252);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.19 0.035 252);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.19 0.035 252);
+  --primary: oklch(0.27 0.075 252);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.94 0.012 250);
+  --secondary-foreground: oklch(0.27 0.075 252);
+  --muted: oklch(0.95 0.008 250);
+  --muted-foreground: oklch(0.49 0.028 252);
+  --accent: oklch(0.56 0.21 27);
+  --accent-foreground: oklch(0.99 0 0);
+  --destructive: oklch(0.56 0.21 27);
+  --border: oklch(0.9 0.012 250);
+  --input: oklch(0.9 0.012 250);
+  --ring: oklch(0.46 0.1 252);
+  --team-navy: oklch(0.31 0.07 252);
+  --team-red: oklch(0.52 0.2 27);
+  --team-blue: oklch(0.48 0.13 250);
+  --team-orange: oklch(0.64 0.17 55);
+  --radius: 0.625rem;
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  body { @apply bg-background text-foreground; }
+  html { scroll-behavior: smooth; }
+}

@@ -1,0 +1,904 @@
+{
+  "modelVersion": "logistic-v1",
+  "dataset": {
+    "sampleCount": 2634,
+    "from": "2023-04-02",
+    "to": "2026-08-01",
+    "seasons": [
+      2023,
+      2024,
+      2025,
+      2026
+    ],
+    "classDistribution": {
+      "AWAY_WIN": 1252,
+      "DRAW": 56,
+      "HOME_WIN": 1326
+    },
+    "missingFeatureCounts": {
+      "seasonWinRateDiff": 0,
+      "recent5WinRateDiff": 0,
+      "recent10WinRateDiff": 0,
+      "recent5RunDiff": 0,
+      "recent10RunDiff": 0,
+      "homeAwayWinRateDiff": 20
+    }
+  },
+  "splits": {
+    "train": {
+      "sampleCount": 1430,
+      "from": "2023-04-02",
+      "to": "2024-10-01",
+      "seasons": [
+        2023,
+        2024
+      ],
+      "classDistribution": {
+        "AWAY_WIN": 677,
+        "DRAW": 22,
+        "HOME_WIN": 731
+      },
+      "missingFeatureCounts": {
+        "seasonWinRateDiff": 0,
+        "recent5WinRateDiff": 0,
+        "recent10WinRateDiff": 0,
+        "recent5RunDiff": 0,
+        "recent10RunDiff": 0,
+        "homeAwayWinRateDiff": 10
+      }
+    },
+    "validation": {
+      "sampleCount": 715,
+      "from": "2025-03-23",
+      "to": "2025-10-04",
+      "seasons": [
+        2025
+      ],
+      "classDistribution": {
+        "AWAY_WIN": 339,
+        "DRAW": 22,
+        "HOME_WIN": 354
+      },
+      "missingFeatureCounts": {
+        "seasonWinRateDiff": 0,
+        "recent5WinRateDiff": 0,
+        "recent10WinRateDiff": 0,
+        "recent5RunDiff": 0,
+        "recent10RunDiff": 0,
+        "homeAwayWinRateDiff": 5
+      }
+    },
+    "finalTest": {
+      "sampleCount": 489,
+      "from": "2026-03-29",
+      "to": "2026-08-01",
+      "seasons": [
+        2026
+      ],
+      "classDistribution": {
+        "AWAY_WIN": 236,
+        "DRAW": 12,
+        "HOME_WIN": 241
+      },
+      "missingFeatureCounts": {
+        "seasonWinRateDiff": 0,
+        "recent5WinRateDiff": 0,
+        "recent10WinRateDiff": 0,
+        "recent5RunDiff": 0,
+        "recent10RunDiff": 0,
+        "homeAwayWinRateDiff": 5
+      }
+    },
+    "finalTraining": {
+      "sampleCount": 2145,
+      "from": "2023-04-02",
+      "to": "2025-10-04",
+      "seasons": [
+        2023,
+        2024,
+        2025
+      ],
+      "classDistribution": {
+        "AWAY_WIN": 1016,
+        "DRAW": 44,
+        "HOME_WIN": 1085
+      },
+      "missingFeatureCounts": {
+        "seasonWinRateDiff": 0,
+        "recent5WinRateDiff": 0,
+        "recent10WinRateDiff": 0,
+        "recent5RunDiff": 0,
+        "recent10RunDiff": 0,
+        "homeAwayWinRateDiff": 15
+      }
+    }
+  },
+  "selectionPolicy": "2025 validation only; lexicographic Log Loss, Brier Score, then Accuracy",
+  "candidateCount": 8,
+  "candidates": [
+    {
+      "C": 0.01,
+      "classWeight": "none",
+      "validation": {
+        "sampleCount": 715,
+        "accuracy": 0.5202797202797202,
+        "logLoss": 0.811901936287512,
+        "brierScore": 0.5262343620508741,
+        "macroF1": 0.3351508248260396,
+        "averageMaxProbability": 0.5219137959508098,
+        "perClass": {
+          "AWAY_WIN": {
+            "precision": 0.5196078431372549,
+            "recall": 0.31268436578171094,
+            "f1": 0.39042357274401474,
+            "support": 339
+          },
+          "DRAW": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 22
+          },
+          "HOME_WIN": {
+            "precision": 0.5205479452054794,
+            "recall": 0.751412429378531,
+            "f1": 0.6150289017341041,
+            "support": 354
+          }
+        },
+        "confusionMatrix": {
+          "labels": [
+            "AWAY_WIN",
+            "DRAW",
+            "HOME_WIN"
+          ],
+          "rowsActualColumnsPredicted": [
+            [
+              106,
+              0,
+              233
+            ],
+            [
+              10,
+              0,
+              12
+            ],
+            [
+              88,
+              0,
+              266
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "C": 0.01,
+      "classWeight": "balanced",
+      "validation": {
+        "sampleCount": 715,
+        "accuracy": 0.36363636363636365,
+        "logLoss": 1.086395016283499,
+        "brierScore": 0.6593650986113426,
+        "macroF1": 0.29981516531838587,
+        "averageMaxProbability": 0.3700246930071484,
+        "perClass": {
+          "AWAY_WIN": {
+            "precision": 0.509090909090909,
+            "recall": 0.49557522123893805,
+            "f1": 0.5022421524663677,
+            "support": 339
+          },
+          "DRAW": {
+            "precision": 0.039301310043668124,
+            "recall": 0.4090909090909091,
+            "f1": 0.07171314741035857,
+            "support": 22
+          },
+          "HOME_WIN": {
+            "precision": 0.532051282051282,
+            "recall": 0.2344632768361582,
+            "f1": 0.3254901960784314,
+            "support": 354
+          }
+        },
+        "confusionMatrix": {
+          "labels": [
+            "AWAY_WIN",
+            "DRAW",
+            "HOME_WIN"
+          ],
+          "rowsActualColumnsPredicted": [
+            [
+              168,
+              100,
+              71
+            ],
+            [
+              11,
+              9,
+              2
+            ],
+            [
+              151,
+              120,
+              83
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "C": 0.1,
+      "classWeight": "none",
+      "validation": {
+        "sampleCount": 715,
+        "accuracy": 0.5034965034965035,
+        "logLoss": 0.811733852659392,
+        "brierScore": 0.5263281511703296,
+        "macroF1": 0.327889228314385,
+        "averageMaxProbability": 0.523507285084935,
+        "perClass": {
+          "AWAY_WIN": {
+            "precision": 0.4911504424778761,
+            "recall": 0.3274336283185841,
+            "f1": 0.3929203539823009,
+            "support": 339
+          },
+          "DRAW": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 22
+          },
+          "HOME_WIN": {
+            "precision": 0.50920245398773,
+            "recall": 0.7033898305084746,
+            "f1": 0.5907473309608541,
+            "support": 354
+          }
+        },
+        "confusionMatrix": {
+          "labels": [
+            "AWAY_WIN",
+            "DRAW",
+            "HOME_WIN"
+          ],
+          "rowsActualColumnsPredicted": [
+            [
+              111,
+              0,
+              228
+            ],
+            [
+              10,
+              0,
+              12
+            ],
+            [
+              105,
+              0,
+              249
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "C": 0.1,
+      "classWeight": "balanced",
+      "validation": {
+        "sampleCount": 715,
+        "accuracy": 0.36923076923076925,
+        "logLoss": 1.0813498446634149,
+        "brierScore": 0.6571259029274581,
+        "macroF1": 0.3080426643595915,
+        "averageMaxProbability": 0.38107431966469646,
+        "perClass": {
+          "AWAY_WIN": {
+            "precision": 0.5139318885448917,
+            "recall": 0.4896755162241888,
+            "f1": 0.5015105740181269,
+            "support": 339
+          },
+          "DRAW": {
+            "precision": 0.0423728813559322,
+            "recall": 0.45454545454545453,
+            "f1": 0.07751937984496124,
+            "support": 22
+          },
+          "HOME_WIN": {
+            "precision": 0.5641025641025641,
+            "recall": 0.24858757062146894,
+            "f1": 0.34509803921568627,
+            "support": 354
+          }
+        },
+        "confusionMatrix": {
+          "labels": [
+            "AWAY_WIN",
+            "DRAW",
+            "HOME_WIN"
+          ],
+          "rowsActualColumnsPredicted": [
+            [
+              166,
+              107,
+              66
+            ],
+            [
+              10,
+              10,
+              2
+            ],
+            [
+              147,
+              119,
+              88
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "C": 1.0,
+      "classWeight": "none",
+      "validation": {
+        "sampleCount": 715,
+        "accuracy": 0.5104895104895105,
+        "logLoss": 0.811752615878299,
+        "brierScore": 0.5264109036187217,
+        "macroF1": 0.3333892242342946,
+        "averageMaxProbability": 0.5240663142974694,
+        "perClass": {
+          "AWAY_WIN": {
+            "precision": 0.5021834061135371,
+            "recall": 0.3392330383480826,
+            "f1": 0.40492957746478875,
+            "support": 339
+          },
+          "DRAW": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 22
+          },
+          "HOME_WIN": {
+            "precision": 0.51440329218107,
+            "recall": 0.7062146892655368,
+            "f1": 0.5952380952380952,
+            "support": 354
+          }
+        },
+        "confusionMatrix": {
+          "labels": [
+            "AWAY_WIN",
+            "DRAW",
+            "HOME_WIN"
+          ],
+          "rowsActualColumnsPredicted": [
+            [
+              115,
+              0,
+              224
+            ],
+            [
+              10,
+              0,
+              12
+            ],
+            [
+              104,
+              0,
+              250
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "C": 1.0,
+      "classWeight": "balanced",
+      "validation": {
+        "sampleCount": 715,
+        "accuracy": 0.3678321678321678,
+        "logLoss": 1.0805307321601185,
+        "brierScore": 0.6568259404878096,
+        "macroF1": 0.30634309012066363,
+        "averageMaxProbability": 0.3830907123460812,
+        "perClass": {
+          "AWAY_WIN": {
+            "precision": 0.5123456790123457,
+            "recall": 0.4896755162241888,
+            "f1": 0.5007541478129713,
+            "support": 339
+          },
+          "DRAW": {
+            "precision": 0.04291845493562232,
+            "recall": 0.45454545454545453,
+            "f1": 0.0784313725490196,
+            "support": 22
+          },
+          "HOME_WIN": {
+            "precision": 0.5506329113924051,
+            "recall": 0.2457627118644068,
+            "f1": 0.33984375,
+            "support": 354
+          }
+        },
+        "confusionMatrix": {
+          "labels": [
+            "AWAY_WIN",
+            "DRAW",
+            "HOME_WIN"
+          ],
+          "rowsActualColumnsPredicted": [
+            [
+              166,
+              104,
+              69
+            ],
+            [
+              10,
+              10,
+              2
+            ],
+            [
+              148,
+              119,
+              87
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "C": 10.0,
+      "classWeight": "none",
+      "validation": {
+        "sampleCount": 715,
+        "accuracy": 0.509090909090909,
+        "logLoss": 0.8117498537570433,
+        "brierScore": 0.5264493182161939,
+        "macroF1": 0.3322155743875918,
+        "averageMaxProbability": 0.524141342854991,
+        "perClass": {
+          "AWAY_WIN": {
+            "precision": 0.5,
+            "recall": 0.336283185840708,
+            "f1": 0.4021164021164021,
+            "support": 339
+          },
+          "DRAW": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 22
+          },
+          "HOME_WIN": {
+            "precision": 0.5133470225872689,
+            "recall": 0.7062146892655368,
+            "f1": 0.5945303210463734,
+            "support": 354
+          }
+        },
+        "confusionMatrix": {
+          "labels": [
+            "AWAY_WIN",
+            "DRAW",
+            "HOME_WIN"
+          ],
+          "rowsActualColumnsPredicted": [
+            [
+              114,
+              0,
+              225
+            ],
+            [
+              10,
+              0,
+              12
+            ],
+            [
+              104,
+              0,
+              250
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "C": 10.0,
+      "classWeight": "balanced",
+      "validation": {
+        "sampleCount": 715,
+        "accuracy": 0.3622377622377622,
+        "logLoss": 1.0804101282034357,
+        "brierScore": 0.6567711843940216,
+        "macroF1": 0.30243547497131923,
+        "averageMaxProbability": 0.3833094991061392,
+        "perClass": {
+          "AWAY_WIN": {
+            "precision": 0.5062111801242236,
+            "recall": 0.4808259587020649,
+            "f1": 0.49319213313161875,
+            "support": 339
+          },
+          "DRAW": {
+            "precision": 0.0423728813559322,
+            "recall": 0.45454545454545453,
+            "f1": 0.07751937984496124,
+            "support": 22
+          },
+          "HOME_WIN": {
+            "precision": 0.5477707006369427,
+            "recall": 0.24293785310734464,
+            "f1": 0.33659491193737767,
+            "support": 354
+          }
+        },
+        "confusionMatrix": {
+          "labels": [
+            "AWAY_WIN",
+            "DRAW",
+            "HOME_WIN"
+          ],
+          "rowsActualColumnsPredicted": [
+            [
+              163,
+              107,
+              69
+            ],
+            [
+              10,
+              10,
+              2
+            ],
+            [
+              149,
+              119,
+              86
+            ]
+          ]
+        }
+      }
+    }
+  ],
+  "selected": {
+    "C": 0.1,
+    "classWeight": "none",
+    "validation": {
+      "sampleCount": 715,
+      "accuracy": 0.5034965034965035,
+      "logLoss": 0.811733852659392,
+      "brierScore": 0.5263281511703296,
+      "macroF1": 0.327889228314385,
+      "averageMaxProbability": 0.523507285084935,
+      "perClass": {
+        "AWAY_WIN": {
+          "precision": 0.4911504424778761,
+          "recall": 0.3274336283185841,
+          "f1": 0.3929203539823009,
+          "support": 339
+        },
+        "DRAW": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 22
+        },
+        "HOME_WIN": {
+          "precision": 0.50920245398773,
+          "recall": 0.7033898305084746,
+          "f1": 0.5907473309608541,
+          "support": 354
+        }
+      },
+      "confusionMatrix": {
+        "labels": [
+          "AWAY_WIN",
+          "DRAW",
+          "HOME_WIN"
+        ],
+        "rowsActualColumnsPredicted": [
+          [
+            111,
+            0,
+            228
+          ],
+          [
+            10,
+            0,
+            12
+          ],
+          [
+            105,
+            0,
+            249
+          ]
+        ]
+      }
+    }
+  },
+  "finalTestComparisons": [
+    {
+      "model": "always-home",
+      "sampleCount": 489,
+      "accuracy": 0.49284253578732107,
+      "logLoss": 0.7920500923771009,
+      "brierScore": 0.5238245398773007,
+      "macroF1": 0.22009132420091324,
+      "averageMaxProbability": 0.5,
+      "perClass": {
+        "AWAY_WIN": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 236
+        },
+        "DRAW": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 12
+        },
+        "HOME_WIN": {
+          "precision": 0.49284253578732107,
+          "recall": 1.0,
+          "f1": 0.6602739726027397,
+          "support": 241
+        }
+      },
+      "confusionMatrix": {
+        "labels": [
+          "AWAY_WIN",
+          "DRAW",
+          "HOME_WIN"
+        ],
+        "rowsActualColumnsPredicted": [
+          [
+            0,
+            0,
+            236
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            241
+          ]
+        ]
+      }
+    },
+    {
+      "model": "season-win-rate",
+      "sampleCount": 489,
+      "accuracy": 0.5255623721881391,
+      "logLoss": 0.8238828232312452,
+      "brierScore": 0.5415745246102397,
+      "macroF1": 0.35471536351165983,
+      "averageMaxProbability": 0.6103077797693558,
+      "perClass": {
+        "AWAY_WIN": {
+          "precision": 0.5204918032786885,
+          "recall": 0.538135593220339,
+          "f1": 0.5291666666666667,
+          "support": 236
+        },
+        "DRAW": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 12
+        },
+        "HOME_WIN": {
+          "precision": 0.5306122448979592,
+          "recall": 0.5394190871369294,
+          "f1": 0.5349794238683128,
+          "support": 241
+        }
+      },
+      "confusionMatrix": {
+        "labels": [
+          "AWAY_WIN",
+          "DRAW",
+          "HOME_WIN"
+        ],
+        "rowsActualColumnsPredicted": [
+          [
+            127,
+            0,
+            109
+          ],
+          [
+            6,
+            0,
+            6
+          ],
+          [
+            111,
+            0,
+            130
+          ]
+        ]
+      }
+    },
+    {
+      "model": "baseline-v1",
+      "sampleCount": 489,
+      "accuracy": 0.5296523517382413,
+      "logLoss": 0.8903821949623896,
+      "brierScore": 0.5730956444384292,
+      "macroF1": 0.35718944152679094,
+      "averageMaxProbability": 0.6292132918598659,
+      "perClass": {
+        "AWAY_WIN": {
+          "precision": 0.5258620689655172,
+          "recall": 0.5169491525423728,
+          "f1": 0.5213675213675214,
+          "support": 236
+        },
+        "DRAW": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 12
+        },
+        "HOME_WIN": {
+          "precision": 0.5330739299610895,
+          "recall": 0.5684647302904564,
+          "f1": 0.5502008032128514,
+          "support": 241
+        }
+      },
+      "confusionMatrix": {
+        "labels": [
+          "AWAY_WIN",
+          "DRAW",
+          "HOME_WIN"
+        ],
+        "rowsActualColumnsPredicted": [
+          [
+            122,
+            0,
+            114
+          ],
+          [
+            6,
+            0,
+            6
+          ],
+          [
+            104,
+            0,
+            137
+          ]
+        ]
+      }
+    },
+    {
+      "model": "logistic-v1",
+      "sampleCount": 489,
+      "accuracy": 0.556237218813906,
+      "logLoss": 0.7882793035501245,
+      "brierScore": 0.5195940234871104,
+      "macroF1": 0.36399362655917433,
+      "averageMaxProbability": 0.5262850707801113,
+      "perClass": {
+        "AWAY_WIN": {
+          "precision": 0.5855263157894737,
+          "recall": 0.3771186440677966,
+          "f1": 0.4587628865979381,
+          "support": 236
+        },
+        "DRAW": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 12
+        },
+        "HOME_WIN": {
+          "precision": 0.543026706231454,
+          "recall": 0.7593360995850622,
+          "f1": 0.6332179930795848,
+          "support": 241
+        }
+      },
+      "confusionMatrix": {
+        "labels": [
+          "AWAY_WIN",
+          "DRAW",
+          "HOME_WIN"
+        ],
+        "rowsActualColumnsPredicted": [
+          [
+            89,
+            0,
+            147
+          ],
+          [
+            5,
+            0,
+            7
+          ],
+          [
+            58,
+            0,
+            183
+          ]
+        ]
+      }
+    }
+  ],
+  "logisticFinalTestDetails": {
+    "sampleCount": 489,
+    "accuracy": 0.556237218813906,
+    "logLoss": 0.7882793035501245,
+    "brierScore": 0.5195940234871104,
+    "macroF1": 0.36399362655917433,
+    "averageMaxProbability": 0.5262850707801113,
+    "perClass": {
+      "AWAY_WIN": {
+        "precision": 0.5855263157894737,
+        "recall": 0.3771186440677966,
+        "f1": 0.4587628865979381,
+        "support": 236
+      },
+      "DRAW": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 12
+      },
+      "HOME_WIN": {
+        "precision": 0.543026706231454,
+        "recall": 0.7593360995850622,
+        "f1": 0.6332179930795848,
+        "support": 241
+      }
+    },
+    "confusionMatrix": {
+      "labels": [
+        "AWAY_WIN",
+        "DRAW",
+        "HOME_WIN"
+      ],
+      "rowsActualColumnsPredicted": [
+        [
+          89,
+          0,
+          147
+        ],
+        [
+          5,
+          0,
+          7
+        ],
+        [
+          58,
+          0,
+          183
+        ]
+      ]
+    }
+  },
+  "leakageGuards": {
+    "scalerFitSeasonsDuringSelection": [
+      2023,
+      2024
+    ],
+    "validationTransformOnly": true,
+    "testUsedDuringSelection": false,
+    "finalScalerFitSeasons": [
+      2023,
+      2024,
+      2025
+    ],
+    "actualResultFeature": false
+  }
+}

@@ -1,0 +1,9 @@
+.gradle
+build
+db/backups
+ml/.venv
+ml/data
+ml/__pycache__
+*.log
+.idea
+.git

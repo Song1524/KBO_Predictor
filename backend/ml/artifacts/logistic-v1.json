@@ -1,0 +1,157 @@
+{
+  "modelVersion": "logistic-v1",
+  "algorithm": "scikit-learn LogisticRegression (multinomial softmax, lbfgs)",
+  "generatedAt": "2026-08-11T06:01:10.578198+00:00",
+  "pythonVersion": "3.12.13",
+  "scikitLearnVersion": "1.7.2",
+  "trainingDataSha256": "d42fe5eae01c491461ec9475920d6bad3c0c0d84616ac5cc627ed34b0c0b4d78",
+  "selection": {
+    "trainedFrom": "2023-04-02",
+    "trainedTo": "2024-10-01",
+    "validationFrom": "2025-03-23",
+    "validationTo": "2025-10-04",
+    "C": 0.1,
+    "classWeight": "none",
+    "objective": "LOG_LOSS_THEN_BRIER_THEN_ACCURACY"
+  },
+  "finalTraining": {
+    "trainedFrom": "2023-04-02",
+    "trainedTo": "2025-10-04",
+    "seasons": [
+      2023,
+      2024,
+      2025
+    ],
+    "sampleCount": 2145
+  },
+  "untouchedFinalTest": {
+    "from": "2026-03-29",
+    "to": "2026-08-01",
+    "season": 2026,
+    "sampleCount": 489
+  },
+  "features": [
+    "seasonWinRateDiff",
+    "recent5WinRateDiff",
+    "recent10WinRateDiff",
+    "recent5RunDiff",
+    "recent10RunDiff",
+    "homeAwayWinRateDiff"
+  ],
+  "classes": [
+    "AWAY_WIN",
+    "DRAW",
+    "HOME_WIN"
+  ],
+  "missingValuePolicy": "median fitted on final training seasons only",
+  "imputer": {
+    "strategy": "median",
+    "statistics": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.1,
+      0.052
+    ]
+  },
+  "scaler": {
+    "mean": [
+      0.00558648018648019,
+      0.007071328671328662,
+      0.009692773892773912,
+      0.07356177156177156,
+      0.09436829836829835,
+      0.06343030303030305
+    ],
+    "scale": [
+      0.1819605661932895,
+      0.3767021528058181,
+      0.28825916898264153,
+      3.5250293449201062,
+      2.713300192438425,
+      0.22147521903851897
+    ]
+  },
+  "coefficients": [
+    [
+      -0.10095675797316274,
+      -0.053835880044657426,
+      0.05871325517852041,
+      -0.11277817586160667,
+      0.07396804139831158,
+      0.07719856479081434
+    ],
+    [
+      0.07292263341041552,
+      0.0738291863161494,
+      -0.13254629260436376,
+      0.1272608056383594,
+      -0.1190155893261432,
+      -0.0683562519801237
+    ],
+    [
+      0.028034124562747714,
+      -0.019993306271492213,
+      0.0738330374258437,
+      -0.014482629776753549,
+      0.04504754792783121,
+      -0.008842312810690667
+    ]
+  ],
+  "intercepts": [
+    1.0307627023728225,
+    -2.1277297705006304,
+    1.096967068127742
+  ],
+  "verificationSamples": [
+    {
+      "gameId": 18,
+      "features": {
+        "seasonWinRateDiff": -1.0,
+        "recent5WinRateDiff": -1.0,
+        "recent10WinRateDiff": -1.0,
+        "recent5RunDiff": -8.0,
+        "recent10RunDiff": -8.0,
+        "homeAwayWinRateDiff": -1.0
+      },
+      "probabilities": {
+        "AWAY_WIN": 0.6084106414226663,
+        "DRAW": 0.028357549135683086,
+        "HOME_WIN": 0.3632318094416506
+      }
+    },
+    {
+      "gameId": 277,
+      "features": {
+        "seasonWinRateDiff": -0.151,
+        "recent5WinRateDiff": -0.8,
+        "recent10WinRateDiff": -0.3,
+        "recent5RunDiff": -4.6,
+        "recent10RunDiff": -4.0,
+        "homeAwayWinRateDiff": 0.04
+      },
+      "probabilities": {
+        "AWAY_WIN": 0.54246028190006,
+        "DRAW": 0.01832588680005356,
+        "HOME_WIN": 0.4392138312998865
+      }
+    },
+    {
+      "gameId": 1,
+      "features": {
+        "seasonWinRateDiff": 0.066,
+        "recent5WinRateDiff": -0.2,
+        "recent10WinRateDiff": -0.3,
+        "recent5RunDiff": -4.0,
+        "recent10RunDiff": -3.3,
+        "homeAwayWinRateDiff": 0.07
+      },
+      "probabilities": {
+        "AWAY_WIN": 0.48929928857589305,
+        "DRAW": 0.02422127907511035,
+        "HOME_WIN": 0.48647943234899665
+      }
+    }
+  ]
+}

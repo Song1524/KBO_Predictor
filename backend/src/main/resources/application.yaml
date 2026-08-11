@@ -1,0 +1,147 @@
+spring:
+  application:
+    name: backend
+  profiles:
+    default: local
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+    validate-on-migrate: true
+    clean-disabled: true
+    out-of-order: false
+    fail-on-missing-locations: true
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+    open-in-view: false
+
+    properties:
+      hibernate:
+        format_sql: true
+
+  task:
+    scheduling:
+      pool:
+        size: 3
+      thread-name-prefix: kbo-scheduler-
+
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    session:
+      tracking-modes: cookie
+      cookie:
+        name: PLAYBALL_SESSION
+        http-only: true
+        path: /
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  health:
+    db:
+      enabled: true
+
+app:
+  user:
+    initial-points: 1000
+  prediction:
+    active-model: baseline-v1
+    logistic-v1:
+      artifact: classpath:models/logistic-v1.json
+      expected-sha256: 7B2663ACD7465FFB45FB05C245DDF35C46B8D74B1F06C75B6C0CFF383C22EADB
+    history-finalization-scheduler:
+      enabled: true
+      fixed-delay-ms: 5000
+      initial-delay-ms: 1500
+      batch-size: 100
+    baseline-v1:
+      model-version: baseline-v1
+      season-win-rate-weight: 0.18
+      recent5-win-rate-weight: 0.10
+      recent10-win-rate-weight: 0.07
+      recent5-run-diff-weight: 0.12
+      recent10-run-diff-weight: 0.08
+      venue-win-rate-weight: 0.10
+      batting-average-weight: 0.10
+      team-era-weight: 0.10
+      starter-era-weight: 0.10
+      starter-whip-weight: 0.05
+      win-rate-difference-scale: 0.25
+      run-difference-scale: 4.0
+      batting-average-difference-scale: 0.040
+      team-era-difference-scale: 2.50
+      starter-era-difference-scale: 2.50
+      starter-whip-difference-scale: 0.50
+      home-advantage: 0.04
+      logistic-scale: 1.80
+      draw-min-probability: 0.05
+      draw-max-probability: 0.12
+      full-strength-coverage: 0.50
+      low-data-coverage: 0.50
+      max-reasons: 4
+    baseline-v2:
+      model-version: baseline-v2
+      training-from: 2026-05-01
+      training-to: 2026-07-09
+      validation-from: 2026-07-16
+      validation-to: 2026-08-01
+      objective: LOG_LOSS_THEN_BRIER_THEN_ACCURACY
+      search-candidate-count: 20000
+      search-seed: 20260811
+      objective-score: 0.774869224
+      season-win-rate-weight: 0.437500
+      recent5-win-rate-weight: 0.062500
+      recent10-win-rate-weight: 0.075000
+      recent5-run-diff-weight: 0.062500
+      recent10-run-diff-weight: 0.112500
+      venue-win-rate-weight: 0.250000
+      home-advantage: 0.06
+      logistic-scale: 0.80
+      draw-min-probability: 0.020
+      draw-max-probability: 0.025
+      draw-strength-exponent: 3.0
+      low-coverage-shrink: 0.50
+      win-rate-difference-scale: 0.25
+      run-difference-scale: 4.0
+      max-reasons: 4
+      operational-extra-features-enabled: false
+  kbo-data:
+    base-url: https://www.koreabaseball.com
+    regular-series-ids: 0,9,6
+    connect-timeout-ms: 3000
+    request-timeout-ms: 7000
+    user-agent: KBO-Predictor/1.0
+    sync-scheduler:
+      enabled: true
+      zone: Asia/Seoul
+      schedule-cron: "0 0 6 * * *"
+      look-ahead-days: 7
+      status-fixed-delay-ms: 300000
+      status-initial-delay-ms: 30000
+      status-refresh-lead-minutes: 60
+    pregame-scheduler:
+      enabled: true
+      zone: Asia/Seoul
+      team-stats-cron: "0 20 6 * * *"
+      starting-pitchers-cron: "0 0 15 * * *"
+      starting-pitcher-look-ahead-days: 1
+      prediction-look-ahead-days: 7
+  odds:
+    max: 10.00
+    closing-scheduler:
+      enabled: true
+      fixed-delay-ms: 5000
+      initial-delay-ms: 1000
+      batch-size: 100
