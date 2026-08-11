@@ -16,7 +16,7 @@ FROM eclipse-temurin:21-jre-alpine AS runtime
 RUN addgroup -S playball && adduser -S playball -G playball
 WORKDIR /app
 
-COPY --from=build --chown=playball:playball /workspace/build/libs/backend-*.jar app.jar
+COPY --from=build --chown=playball:playball /workspace/build/libs/kbo-predictor-*.jar /app/app.jar
 
 USER playball
 EXPOSE 8080
