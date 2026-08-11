@@ -104,6 +104,7 @@ jobs:
 
           CLEAN_HOST="$(printf '%s' "$EC2_HOST" | tr -d '\r\n ')"
           CLEAN_USER="$(printf '%s' "$EC2_USER" | tr -d '\r\n ')"
+          CLEAN_KEY="$(printf '%s' "$EC2_SSH_KEY_HEX" | tr -d '\r\n ')"
 
           if [ -z "$CLEAN_HOST" ]; then
             echo "EC2_HOST is empty"
@@ -115,12 +116,25 @@ jobs:
             exit 1
           fi
 
-          if [ -z "$EC2_SSH_KEY_HEX" ]; then
+          if [ -z "$CLEAN_KEY" ]; then
             echo "EC2_SSH_KEY_HEX is empty"
             exit 1
           fi
 
-          python3 -c 'import os, pathlib; pathlib.Path.home().joinpath(".ssh/id_ed25519").write_bytes(bytes.fromhex(os.environ["EC2_SSH_KEY_HEX"]))'
+          if ! printf '%s' "$CLEAN_KEY" | grep -Eq '^[0-9a-fA-F]+$'; then
+            echo "EC2_SSH_KEY_HEX contains invalid characters"
+            exit 1
+          fi
+
+          export CLEAN_KEY
+
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          key = bytes.fromhex(os.environ["CLEAN_KEY"])
+          Path.home().joinpath(".ssh/id_ed25519").write_bytes(key)
+          PY
 
           chmod 600 "$HOME/.ssh/id_ed25519"
 
@@ -140,6 +154,8 @@ jobs:
             -i "$HOME/.ssh/id_ed25519" \
             -o BatchMode=yes \
             -o ConnectTimeout=15 \
+            -o ServerAliveInterval=5 \
+            -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=accept-new \
             "$CLEAN_EC2_USER@$CLEAN_EC2_HOST" \
             "echo 'SSH connection successful'"
@@ -150,6 +166,8 @@ jobs:
             -i "$HOME/.ssh/id_ed25519" \
             -o BatchMode=yes \
             -o ConnectTimeout=15 \
+            -o ServerAliveInterval=5 \
+            -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=accept-new \
             "$CLEAN_EC2_USER@$CLEAN_EC2_HOST" 'bash -se' <<'EOF'
           set -e
