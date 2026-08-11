@@ -102,9 +102,6 @@ jobs:
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          printf '%s\n' "$EC2_SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-
           CLEAN_HOST="$(printf '%s' "$EC2_HOST" | tr -d '\r\n ')"
           CLEAN_USER="$(printf '%s' "$EC2_USER" | tr -d '\r\n ')"
 
@@ -118,18 +115,28 @@ jobs:
             exit 1
           fi
 
-          ssh-keyscan -T 10 -H "$CLEAN_HOST" >> ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
+          printf '%s\n' "$EC2_SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          if ! ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null 2>&1; then
+            echo "EC2_SSH_KEY is invalid"
+            exit 1
+          fi
 
           echo "CLEAN_EC2_HOST=$CLEAN_HOST" >> "$GITHUB_ENV"
           echo "CLEAN_EC2_USER=$CLEAN_USER" >> "$GITHUB_ENV"
+
+          echo "SSH configuration completed."
 
       - name: Test SSH connection
         run: |
           ssh \
             -i ~/.ssh/id_ed25519 \
             -o BatchMode=yes \
-            -o ConnectTimeout=10 \
+            -o ConnectTimeout=15 \
+            -o ServerAliveInterval=5 \
+            -o ServerAliveCountMax=3 \
+            -o StrictHostKeyChecking=accept-new \
             "$CLEAN_EC2_USER@$CLEAN_EC2_HOST" \
             "echo 'SSH connection successful'"
 
@@ -137,6 +144,9 @@ jobs:
         run: |
           ssh \
             -i ~/.ssh/id_ed25519 \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
+            -o StrictHostKeyChecking=accept-new \
             "$CLEAN_EC2_USER@$CLEAN_EC2_HOST" << 'EOF'
             set -e
 
@@ -164,6 +174,9 @@ jobs:
 
               sleep 5
             done
+
+            echo "=== Ensure frontend is running ==="
+            docker compose up -d frontend
 
             echo "=== Wait for frontend ==="
             for i in $(seq 1 24); do
