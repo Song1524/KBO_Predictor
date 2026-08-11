@@ -148,16 +148,22 @@ jobs:
 
           echo "SSH configuration completed."
 
-      - name: Test SSH connection
+      - name: Test EC2 network
         run: |
+          echo "=== HTTP 80 ==="
+          curl -v --connect-timeout 10 http://54.180.99.10/ || true
+
+          echo "=== TCP 22 ==="
+          nc -vz -w 10 54.180.99.10 22 || true
+
+          echo "=== SSH 22 ==="
           ssh \
+            -vvv \
             -i "$HOME/.ssh/id_ed25519" \
             -o BatchMode=yes \
             -o ConnectTimeout=15 \
-            -o ServerAliveInterval=5 \
-            -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=accept-new \
-            "$CLEAN_EC2_USER@$CLEAN_EC2_HOST" \
+            ubuntu@54.180.99.10 \
             "echo 'SSH connection successful'"
 
       - name: Deploy
