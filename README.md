@@ -84,6 +84,35 @@ docker compose down
 
 DB 데이터는 `mysql-data` named volume에 유지됩니다. 완전한 빈 DB 재검증이 필요한 경우에만 별도 프로젝트 이름 또는 새 volume을 사용하십시오. 기존 개발 DB나 운영 volume을 삭제하지 마십시오.
 
+## GitHub Actions 배포
+
+`main` 브랜치 push 시 [.github/workflows/deploy.yml](.github/workflows/deploy.yml)이 다음 순서로 실행됩니다.
+
+1. Java 21/MySQL 8.4 환경에서 Backend 전체 테스트
+2. Node.js 22 환경에서 Frontend production build
+3. 두 CI job 성공 후 GitHub OIDC로 AWS IAM Role assume
+4. AWS Systems Manager `AWS-RunShellScript`로 EC2 배포
+5. SSM Command 상태를 제한 시간 동안 polling
+6. Backend/Frontend health check와 최종 `docker compose ps` 출력
+
+GitHub Repository Variables에는 다음 값이 필요합니다.
+
+- `AWS_REGION`
+- `AWS_ROLE_ARN`
+- `EC2_INSTANCE_ID`
+
+정적 AWS access key와 SSH key는 사용하지 않습니다. GitHub OIDC IAM Role의 trust policy는 `Song1524/KBO_Predictor` 저장소의 `main` 브랜치만 role을 assume할 수 있도록 제한해야 합니다.
+
+EC2에는 다음 조건이 준비되어 있어야 합니다.
+
+- SSM Agent Online 및 `AmazonSSMManagedInstanceCore`가 적용된 instance profile
+- `/home/ubuntu/KBO_Predictor` clone과 `origin/main` fetch 권한
+- Docker Engine, Docker Compose v2
+- `ubuntu` 사용자의 Docker 실행 권한
+- Git에서 제외된 운영 `.env`
+
+SSM Agent가 command를 root로 받아도 Git 작업과 Docker 배포는 `ubuntu` 사용자로 실행하여 저장소와 `.env` 소유권을 보존합니다. SSM 배포는 IP 주소나 22번 포트를 사용하지 않습니다. 실패 시 GitHub Actions 로그에 SSM Status, ResponseCode, stdout, stderr가 출력됩니다.
+
 ## Flyway
 
 애플리케이션 시작 시 Flyway V1부터 최신 migration까지 순서대로 적용되고 Hibernate는 `ddl-auto=validate`로 스키마를 검증합니다. `clean`은 비활성화되어 있습니다.
