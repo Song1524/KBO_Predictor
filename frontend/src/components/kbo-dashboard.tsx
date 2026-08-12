@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import {
   ChevronLeft,
   ChevronRight,
+  MessageCircle,
   Sparkles,
+  Trophy,
   Users,
 } from 'lucide-react'
 import { useAuth } from '@/auth-context'
@@ -614,6 +616,63 @@ export function KboDashboard() {
             })}
           </div>
           )}
+        </section>
+
+        <section
+          className="grid gap-5 lg:grid-cols-[0.9fr_1.4fr]"
+          aria-label="KBO 순위 및 커뮤니티"
+        >
+          <Card id="standings" className="scroll-mt-24">
+            <CardHeader>
+              <CardTitle>KBO 순위</CardTitle>
+              <CardDescription>정규시즌 팀 순위</CardDescription>
+              <CardAction>
+                <Badge variant="outline">준비 중</Badge>
+              </CardAction>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-[32px_1fr_64px_48px] gap-2 border-b pb-2 text-xs font-medium text-muted-foreground">
+                <span>순위</span>
+                <span>팀</span>
+                <span>승률</span>
+                <span>게임차</span>
+              </div>
+              <div className="flex min-h-44 flex-col items-center justify-center gap-3 py-8 text-center">
+                <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <Trophy className="size-5" aria-hidden="true" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold">순위 데이터 준비 중</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    공식 KBO 순위 데이터를 준비하고 있습니다.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card id="community" className="scroll-mt-24">
+            <CardHeader>
+              <CardTitle>지금 뜨는 이야기</CardTitle>
+              <CardDescription>
+                야구팬들이 이야기를 나눌 공간
+              </CardDescription>
+              <CardAction>
+                <Badge variant="outline">준비 중</Badge>
+              </CardAction>
+            </CardHeader>
+            <CardContent className="flex min-h-56 flex-col items-center justify-center gap-3 py-8 text-center">
+              <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <MessageCircle className="size-5" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold">커뮤니티 준비 중</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  팬들과 이야기를 나눌 공간을 준비하고 있습니다.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </section>
       </main>
       <footer className="border-t"><div className="mx-auto flex max-w-7xl flex-col justify-between gap-3 px-4 py-6 text-xs text-muted-foreground sm:flex-row lg:px-6"><p>PLAYBALL · KBO 팬을 위한 데이터 기반 승부예측</p><p>본 예측은 참고용이며 사행성 행위를 조장하지 않습니다.</p></div></footer>

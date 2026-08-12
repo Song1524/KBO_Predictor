@@ -120,6 +120,19 @@ export function AppHeader() {
             >
               승부예측
             </Link>
+            <Link
+              to="/#standings"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground"
+            >
+              순위
+            </Link>
+            <Link
+              to="/#community"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground"
+              aria-label="커뮤니티 준비 중 영역으로 이동"
+            >
+              커뮤니티
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-2">
