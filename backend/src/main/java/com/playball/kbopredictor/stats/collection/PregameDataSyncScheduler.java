@@ -5,6 +5,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -34,6 +36,20 @@ public class PregameDataSyncScheduler {
 
     @Value("${app.kbo-data.pregame-scheduler.prediction-look-ahead-days:7}")
     private int predictionLookAheadDays;
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void refreshStalePredictionsAfterStartup() {
+        if (!running.compareAndSet(false, true)) {
+            log.info("Skipping startup stale prediction refresh because another pregame sync is running.");
+            return;
+        }
+        LocalDate today = LocalDate.now(clock);
+        try {
+            refreshStalePredictions(today);
+        } finally {
+            running.set(false);
+        }
+    }
 
     @Scheduled(
             cron = "${app.kbo-data.pregame-scheduler.team-stats-cron:0 20 6 * * *}",
@@ -102,11 +118,8 @@ public class PregameDataSyncScheduler {
         }
         LocalDate today = LocalDate.now(clock);
         try {
-            StartingPitcherSyncResponse response =
-                    startingPitcherSyncService.retryMissingBeforeStart(today);
-            if (response.insertedCount() > 0 || response.updatedCount() > 0) {
-                generatePredictions(today);
-            }
+            startingPitcherSyncService.retryMissingBeforeStart(today);
+            refreshStalePredictions(today);
         } catch (RuntimeException exception) {
             log.error(
                     "KBO 미발표 선발투수 재시도 실패 - 다음 실행에서 재시도: gameDate={}",
@@ -124,6 +137,18 @@ public class PregameDataSyncScheduler {
         } catch (RuntimeException exception) {
             log.error(
                     "시스템 예측 자동 생성 실패 - 다음 수집 후 재시도: date={}",
+                    date,
+                    exception
+            );
+        }
+    }
+
+    private void refreshStalePredictions(LocalDate date) {
+        try {
+            predictionGenerationService.refreshStaleForDate(date);
+        } catch (RuntimeException exception) {
+            log.error(
+                    "Stale system prediction refresh failed; it will retry on the next scheduled run. date={}",
                     date,
                     exception
             );

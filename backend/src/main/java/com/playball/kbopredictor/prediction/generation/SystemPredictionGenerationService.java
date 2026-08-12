@@ -32,19 +32,32 @@ public class SystemPredictionGenerationService {
     private final Clock clock;
 
     public SystemPredictionGenerationResponse generate(Long gameId) {
+        return generate(gameId, false);
+    }
+
+    public SystemPredictionGenerationResponse refreshStale(Long gameId) {
+        return generate(gameId, true);
+    }
+
+    private SystemPredictionGenerationResponse generate(
+            Long gameId,
+            boolean staleOnly
+    ) {
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "경기를 찾을 수 없습니다."
                 ));
-        SystemPredictionGenerationResponse precheck = precheck(game);
+        SystemPredictionGenerationResponse precheck = precheck(game, staleOnly);
         if (precheck != null) {
             return precheck;
         }
 
         PredictionFeatures features = featureService.build(gameId);
         PredictionEngineResult prediction = predictionEngine.predict(features);
-        SystemPredictionWriteResult write = writer.write(features, prediction);
+        SystemPredictionWriteResult write = staleOnly
+                ? writer.writeIfStale(features, prediction)
+                : writer.write(features, prediction);
         if (write.written() && !"logistic-v1".equals(prediction.modelVersion())) {
             try {
                 shadowPredictionService.generate(features, write);
@@ -63,10 +76,23 @@ public class SystemPredictionGenerationService {
     public SystemPredictionGenerationBatchResponse generateForDate(
             LocalDate date
     ) {
+        return generateForDate(date, false);
+    }
+
+    public SystemPredictionGenerationBatchResponse refreshStaleForDate(
+            LocalDate date
+    ) {
+        return generateForDate(date, true);
+    }
+
+    private SystemPredictionGenerationBatchResponse generateForDate(
+            LocalDate date,
+            boolean staleOnly
+    ) {
         List<SystemPredictionGenerationResponse> results = new ArrayList<>();
         for (Game game : gameRepository.findByGameDateOrderByGameTimeAsc(date)) {
             try {
-                results.add(generate(game.getId()));
+                results.add(generate(game.getId(), staleOnly));
             } catch (RuntimeException exception) {
                 String message = exception.getMessage() == null
                         ? exception.getClass().getSimpleName()
@@ -98,7 +124,10 @@ public class SystemPredictionGenerationService {
         return response;
     }
 
-    private SystemPredictionGenerationResponse precheck(Game game) {
+    private SystemPredictionGenerationResponse precheck(
+            Game game,
+            boolean staleOnly
+    ) {
         if (game.getStatus() != GameStatus.SCHEDULED) {
             return SystemPredictionGenerationResponse.skipped(
                     game.getId(),
@@ -106,8 +135,20 @@ public class SystemPredictionGenerationService {
                     "예정 경기가 아닙니다."
             );
         }
+        LocalDateTime now = LocalDateTime.now(clock);
+        if (staleOnly && (game.getGameDate() == null
+                || game.getGameTime() == null
+                || !now.isBefore(LocalDateTime.of(
+                game.getGameDate(), game.getGameTime()
+        )))) {
+            return SystemPredictionGenerationResponse.skipped(
+                    game.getId(),
+                    SystemPredictionGenerationStatus.SKIPPED_CLOSED,
+                    "Stale predictions are refreshed only before game start."
+            );
+        }
         LocalDateTime closeAt = game.getPredictionCloseAt();
-        if (closeAt != null && !LocalDateTime.now(clock).isBefore(closeAt)) {
+        if (closeAt != null && !now.isBefore(closeAt)) {
             return SystemPredictionGenerationResponse.skipped(
                     game.getId(),
                     SystemPredictionGenerationStatus.SKIPPED_CLOSED,

@@ -128,6 +128,71 @@ class SystemPredictionGenerationServiceTest {
         );
     }
 
+    @Test
+    void staleDateRefreshUsesConditionalWriterForScheduledPregame() {
+        PredictionFeatures features = features(true);
+        PredictionEngineResult prediction = result("57.00", "9.00", "34.00");
+        SystemPredictionWriteResult updated = writeResult(
+                SystemPredictionGenerationStatus.UPDATED,
+                prediction,
+                102L
+        );
+        when(gameRepository.findByGameDateOrderByGameTimeAsc(game.getGameDate()))
+                .thenReturn(List.of(game));
+        when(gameRepository.findById(10L)).thenReturn(Optional.of(game));
+        when(featureService.build(10L)).thenReturn(features);
+        when(predictionEngine.predict(features)).thenReturn(prediction);
+        when(writer.writeIfStale(features, prediction)).thenReturn(updated);
+
+        SystemPredictionGenerationBatchResponse response =
+                service.refreshStaleForDate(game.getGameDate());
+
+        assertThat(response.updatedCount()).isEqualTo(1);
+        assertThat(response.skippedCount()).isZero();
+        verify(writer).writeIfStale(features, prediction);
+        verify(writer, never()).write(features, prediction);
+        verify(shadowPredictionService).generate(features, updated);
+    }
+
+    @Test
+    void staleRefreshExcludesInProgressGame() {
+        ReflectionTestUtils.setField(game, "status", GameStatus.IN_PROGRESS);
+        when(gameRepository.findById(10L)).thenReturn(Optional.of(game));
+
+        SystemPredictionGenerationResponse response = service.refreshStale(10L);
+
+        assertThat(response.status())
+                .isEqualTo(SystemPredictionGenerationStatus.SKIPPED_NOT_SCHEDULED);
+        verify(featureService, never()).build(10L);
+        verify(writer, never()).writeIfStale(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()
+        );
+    }
+
+    @Test
+    void staleRefreshExcludesScheduledGameWhoseStartTimeHasPassed() {
+        service = new SystemPredictionGenerationService(
+                gameRepository,
+                featureService,
+                predictionEngine,
+                writer,
+                shadowPredictionService,
+                fixed(LocalDateTime.of(2026, 8, 12, 19, 0))
+        );
+        when(gameRepository.findById(10L)).thenReturn(Optional.of(game));
+
+        SystemPredictionGenerationResponse response = service.refreshStale(10L);
+
+        assertThat(response.status())
+                .isEqualTo(SystemPredictionGenerationStatus.SKIPPED_CLOSED);
+        verify(featureService, never()).build(10L);
+        verify(writer, never()).writeIfStale(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()
+        );
+    }
+
     private PredictionFeatures features(boolean pitcherAvailable) {
         TeamPredictionFeatures home = teamFeatures(
                 1L, "LG 트윈스", pitcherAvailable

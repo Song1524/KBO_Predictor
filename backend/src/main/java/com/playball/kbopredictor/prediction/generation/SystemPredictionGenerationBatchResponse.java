@@ -23,6 +23,8 @@ public record SystemPredictionGenerationBatchResponse(
                 count(results, SystemPredictionGenerationStatus.UPDATED),
                 (int) results.stream()
                         .filter(result -> result.status()
+                                == SystemPredictionGenerationStatus.SKIPPED_UP_TO_DATE
+                                || result.status()
                                 == SystemPredictionGenerationStatus.SKIPPED_CLOSED
                                 || result.status()
                                 == SystemPredictionGenerationStatus.SKIPPED_NOT_SCHEDULED)

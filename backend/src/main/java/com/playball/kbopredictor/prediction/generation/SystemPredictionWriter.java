@@ -21,9 +21,11 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -40,13 +42,29 @@ public class SystemPredictionWriter {
             PredictionFeatures features,
             PredictionEngineResult result
     ) {
-        return write(features, result).response();
+        return writeLocked(features, result, false).response();
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public SystemPredictionWriteResult write(
             PredictionFeatures features,
             PredictionEngineResult result
+    ) {
+        return writeLocked(features, result, false);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SystemPredictionWriteResult writeIfStale(
+            PredictionFeatures features,
+            PredictionEngineResult result
+    ) {
+        return writeLocked(features, result, true);
+    }
+
+    private SystemPredictionWriteResult writeLocked(
+            PredictionFeatures features,
+            PredictionEngineResult result,
+            boolean staleOnly
     ) {
         Game game = gameRepository.findByIdForUpdate(features.gameId())
                 .orElseThrow(() -> new ResponseStatusException(
@@ -65,6 +83,15 @@ public class SystemPredictionWriter {
 
         SystemPrediction prediction = systemPredictionRepository
                 .findByGameId(game.getId()).orElse(null);
+        if (staleOnly && !requiresRefresh(prediction, features, result)) {
+            return skipped(
+                    game,
+                    SystemPredictionGenerationStatus.SKIPPED_UP_TO_DATE,
+                    prediction == null
+                            ? "No existing system prediction to refresh."
+                            : "System prediction already uses current feature coverage and model."
+            );
+        }
         boolean created = prediction == null;
         if (created) {
             prediction = SystemPrediction.create(game, now);
@@ -108,6 +135,42 @@ public class SystemPredictionWriter {
                                 : "System prediction updated."
                 );
         return new SystemPredictionWriteResult(response, snapshot.getId(), stage);
+    }
+
+    private boolean requiresRefresh(
+            SystemPrediction current,
+            PredictionFeatures features,
+            PredictionEngineResult candidate
+    ) {
+        if (current == null) {
+            return false;
+        }
+        if (!Objects.equals(current.getModelVersion(), candidate.modelVersion())) {
+            return true;
+        }
+        if (isGreater(candidate.featureCoverage(), current.getFeatureCoverage())) {
+            return true;
+        }
+        return isNewer(features.home().teamStatDate(), current.getHomeStatDate())
+                || isNewer(features.away().teamStatDate(), current.getAwayStatDate())
+                || isNewer(
+                pitcherStatDate(features, true),
+                current.getHomePitcherStatDate()
+        )
+                || isNewer(
+                pitcherStatDate(features, false),
+                current.getAwayPitcherStatDate()
+        );
+    }
+
+    private boolean isGreater(BigDecimal candidate, BigDecimal current) {
+        return candidate != null
+                && (current == null || candidate.compareTo(current) > 0);
+    }
+
+    private boolean isNewer(LocalDate candidate, LocalDate current) {
+        return candidate != null
+                && (current == null || candidate.isAfter(current));
     }
 
     private SystemPredictionWriteResult skipped(

@@ -142,21 +142,198 @@ class SystemPredictionWriterTest {
                 .saveAndFlush(org.mockito.ArgumentMatchers.any());
     }
 
+    @Test
+    void staleWriteUpdatesZeroCoveragePredictionWhenCurrentCoverageImproves() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 12, 12, 0);
+        Game game = game(10L, LocalDate.of(2026, 8, 12), LocalTime.of(18, 30));
+        PredictionFeatures features = features(game);
+        SystemPrediction current = currentPrediction(
+                game,
+                "baseline-v1",
+                "0.000",
+                null,
+                null
+        );
+        SystemPredictionWriter writer = new SystemPredictionWriter(
+                gameRepository,
+                systemPredictionRepository,
+                snapshotRepository,
+                historyRecorder,
+                clock(now)
+        );
+        when(gameRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(game));
+        when(systemPredictionRepository.findByGameId(10L))
+                .thenReturn(Optional.of(current));
+        mockSnapshotPersistence();
+
+        SystemPredictionWriteResult response = writer.writeIfStale(
+                features,
+                result(
+                        PredictionOutcome.HOME_WIN,
+                        "58.00",
+                        "8.00",
+                        "34.00",
+                        "baseline-v1",
+                        "0.850"
+                )
+        );
+
+        assertThat(response.response().status())
+                .isEqualTo(SystemPredictionGenerationStatus.UPDATED);
+        assertThat(current.getFeatureCoverage())
+                .isEqualByComparingTo("0.850");
+        assertThat(current.getHomeStatDate())
+                .isEqualTo(LocalDate.of(2026, 8, 11));
+        verify(systemPredictionRepository).saveAndFlush(current);
+        verify(snapshotRepository).saveAndFlush(
+                org.mockito.ArgumentMatchers.any(PredictionFeatureSnapshot.class)
+        );
+    }
+
+    @Test
+    void staleWriteSkipsPredictionThatAlreadyUsesCurrentCoverageAndDates() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 12, 12, 0);
+        Game game = game(10L, LocalDate.of(2026, 8, 12), LocalTime.of(18, 30));
+        LocalDate statDate = LocalDate.of(2026, 8, 11);
+        SystemPrediction current = currentPrediction(
+                game,
+                "baseline-v1",
+                "0.850",
+                statDate,
+                statDate
+        );
+        SystemPredictionWriter writer = new SystemPredictionWriter(
+                gameRepository,
+                systemPredictionRepository,
+                snapshotRepository,
+                historyRecorder,
+                clock(now)
+        );
+        when(gameRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(game));
+        when(systemPredictionRepository.findByGameId(10L))
+                .thenReturn(Optional.of(current));
+
+        SystemPredictionWriteResult response = writer.writeIfStale(
+                features(game),
+                result(
+                        PredictionOutcome.HOME_WIN,
+                        "58.00",
+                        "8.00",
+                        "34.00",
+                        "baseline-v1",
+                        "0.850"
+                )
+        );
+
+        assertThat(response.response().status())
+                .isEqualTo(SystemPredictionGenerationStatus.SKIPPED_UP_TO_DATE);
+        assertThat(response.written()).isFalse();
+        verify(systemPredictionRepository, never())
+                .saveAndFlush(org.mockito.ArgumentMatchers.any());
+        verify(snapshotRepository, never())
+                .saveAndFlush(org.mockito.ArgumentMatchers.any());
+        verify(historyRecorder, never()).recordOperational(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()
+        );
+    }
+
+    @Test
+    void staleWriteUpdatesWhenActiveModelVersionChanges() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 12, 12, 0);
+        Game game = game(10L, LocalDate.of(2026, 8, 12), LocalTime.of(18, 30));
+        LocalDate statDate = LocalDate.of(2026, 8, 11);
+        SystemPrediction current = currentPrediction(
+                game,
+                "old-model",
+                "0.850",
+                statDate,
+                statDate
+        );
+        SystemPredictionWriter writer = new SystemPredictionWriter(
+                gameRepository,
+                systemPredictionRepository,
+                snapshotRepository,
+                historyRecorder,
+                clock(now)
+        );
+        when(gameRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(game));
+        when(systemPredictionRepository.findByGameId(10L))
+                .thenReturn(Optional.of(current));
+        mockSnapshotPersistence();
+
+        SystemPredictionWriteResult response = writer.writeIfStale(
+                features(game),
+                result(
+                        PredictionOutcome.HOME_WIN,
+                        "58.00",
+                        "8.00",
+                        "34.00",
+                        "baseline-v1",
+                        "0.850"
+                )
+        );
+
+        assertThat(response.response().status())
+                .isEqualTo(SystemPredictionGenerationStatus.UPDATED);
+        assertThat(current.getModelVersion()).isEqualTo("baseline-v1");
+        verify(systemPredictionRepository).saveAndFlush(current);
+    }
+
     private PredictionEngineResult result(
             PredictionOutcome outcome,
             String home,
             String draw,
             String away
     ) {
+        return result(outcome, home, draw, away, "baseline-v1", "0.850");
+    }
+
+    private PredictionEngineResult result(
+            PredictionOutcome outcome,
+            String home,
+            String draw,
+            String away,
+            String modelVersion,
+            String coverage
+    ) {
         return new PredictionEngineResult(
                 new BigDecimal(home),
                 new BigDecimal(draw),
                 new BigDecimal(away),
                 outcome,
-                "baseline-v1",
-                new BigDecimal("0.850"),
+                modelVersion,
+                new BigDecimal(coverage),
                 List.of("LG 트윈스가 최근 10경기 승률에서 우세합니다.")
         );
+    }
+
+    private SystemPrediction currentPrediction(
+            Game game,
+            String modelVersion,
+            String coverage,
+            LocalDate teamStatDate,
+            LocalDate pitcherStatDate
+    ) {
+        LocalDateTime generatedAt = LocalDateTime.of(2026, 8, 12, 6, 20);
+        SystemPrediction prediction = SystemPrediction.create(game, generatedAt);
+        prediction.update(
+                game.getHomeTeam(),
+                PredictionOutcome.HOME_WIN,
+                new BigDecimal("45.73"),
+                new BigDecimal("11.72"),
+                new BigDecimal("42.55"),
+                modelVersion,
+                new BigDecimal(coverage),
+                teamStatDate,
+                teamStatDate,
+                pitcherStatDate,
+                pitcherStatDate,
+                "old prediction",
+                generatedAt
+        );
+        return prediction;
     }
 
     private PredictionFeatures features(Game game) {

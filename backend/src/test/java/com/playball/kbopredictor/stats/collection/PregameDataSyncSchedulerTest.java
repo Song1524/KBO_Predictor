@@ -73,7 +73,7 @@ class PregameDataSyncSchedulerTest {
     }
 
     @Test
-    void retryRegeneratesPredictionsOnlyWhenMissingStarterWasSaved() {
+    void retryRefreshesStalePredictionsWhenMissingStarterWasSaved() {
         LocalDate today = LocalDate.of(2026, 8, 10);
         LocalDateTime now = LocalDateTime.of(2026, 8, 10, 12, 0);
         when(startingPitcherSyncService.retryMissingBeforeStart(today))
@@ -84,11 +84,12 @@ class PregameDataSyncSchedulerTest {
         scheduler.retryMissingStartingPitchers();
 
         verify(startingPitcherSyncService).retryMissingBeforeStart(today);
-        verify(predictionGenerationService).generateForDate(today);
+        verify(predictionGenerationService).refreshStaleForDate(today);
+        verify(predictionGenerationService, never()).generateForDate(today);
     }
 
     @Test
-    void retryDoesNotRegenerateWhenAllStartersWereAlreadyPresent() {
+    void retryStillChecksStalePredictionsWhenAllStartersWereAlreadyPresent() {
         LocalDate today = LocalDate.of(2026, 8, 10);
         LocalDateTime now = LocalDateTime.of(2026, 8, 10, 12, 0);
         when(startingPitcherSyncService.retryMissingBeforeStart(today))
@@ -98,6 +99,19 @@ class PregameDataSyncSchedulerTest {
 
         scheduler.retryMissingStartingPitchers();
 
+        verify(startingPitcherSyncService).retryMissingBeforeStart(today);
+        verify(predictionGenerationService).refreshStaleForDate(today);
         verify(predictionGenerationService, never()).generateForDate(today);
+    }
+
+    @Test
+    void startupChecksTodaysStalePredictionsOnce() {
+        LocalDate today = LocalDate.of(2026, 8, 10);
+
+        scheduler.refreshStalePredictionsAfterStartup();
+
+        verify(predictionGenerationService).refreshStaleForDate(today);
+        verify(startingPitcherSyncService, never())
+                .retryMissingBeforeStart(today);
     }
 }
