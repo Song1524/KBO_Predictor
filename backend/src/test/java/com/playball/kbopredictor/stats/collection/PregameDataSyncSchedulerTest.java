@@ -11,8 +11,12 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.LocalDateTime;
+import java.util.List;
 
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import com.playball.kbopredictor.prediction.generation.SystemPredictionGenerationService;
 
 @ExtendWith(MockitoExtension.class)
@@ -66,5 +70,34 @@ class PregameDataSyncSchedulerTest {
                 .generateForDate(today);
         verify(predictionGenerationService, org.mockito.Mockito.times(2))
                 .generateForDate(today.plusDays(1));
+    }
+
+    @Test
+    void retryRegeneratesPredictionsOnlyWhenMissingStarterWasSaved() {
+        LocalDate today = LocalDate.of(2026, 8, 10);
+        LocalDateTime now = LocalDateTime.of(2026, 8, 10, 12, 0);
+        when(startingPitcherSyncService.retryMissingBeforeStart(today))
+                .thenReturn(new StartingPitcherSyncResponse(
+                        today, 5, 1, 1, 0, 1, 0, List.of(), now, now
+                ));
+
+        scheduler.retryMissingStartingPitchers();
+
+        verify(startingPitcherSyncService).retryMissingBeforeStart(today);
+        verify(predictionGenerationService).generateForDate(today);
+    }
+
+    @Test
+    void retryDoesNotRegenerateWhenAllStartersWereAlreadyPresent() {
+        LocalDate today = LocalDate.of(2026, 8, 10);
+        LocalDateTime now = LocalDateTime.of(2026, 8, 10, 12, 0);
+        when(startingPitcherSyncService.retryMissingBeforeStart(today))
+                .thenReturn(new StartingPitcherSyncResponse(
+                        today, 0, 0, 0, 0, 0, 0, List.of(), now, now
+                ));
+
+        scheduler.retryMissingStartingPitchers();
+
+        verify(predictionGenerationService, never()).generateForDate(today);
     }
 }

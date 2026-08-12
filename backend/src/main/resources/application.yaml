@@ -137,6 +137,7 @@ app:
       zone: Asia/Seoul
       team-stats-cron: "0 20 6 * * *"
       starting-pitchers-cron: "0 0 15 * * *"
+      starting-pitchers-retry-cron: "0 30 15-17 * * *"
       starting-pitcher-look-ahead-days: 1
       prediction-look-ahead-days: 7
   odds:

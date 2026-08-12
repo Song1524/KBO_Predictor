@@ -65,6 +65,10 @@ type GameApiResponse = {
   homeTeamName: string | null
   awayTeamId: number | null
   awayTeamName: string | null
+  homeStartingPitcherPlayerId: number | null
+  homeStartingPitcherName: string | null
+  awayStartingPitcherPlayerId: number | null
+  awayStartingPitcherName: string | null
   stadium: string | null
   status: GameStatus | null
   homeScore: number | null
@@ -93,6 +97,8 @@ type DashboardGame = {
   userOdds: GameOddsApiResponse | null
   awayScore: number | null
   homeScore: number | null
+  awayStartingPitcherName: string | null
+  homeStartingPitcherName: string | null
   cancelReason: string | null
 }
 
@@ -129,6 +135,11 @@ function formatSelectedDate(date: string) {
 function normalizeText(value: string | null, fallback: string) {
   const normalized = value?.trim()
   return normalized || fallback
+}
+
+function normalizeNullableText(value: string | null) {
+  const normalized = value?.trim()
+  return normalized || null
 }
 
 function getTeamMark(teamName: string) {
@@ -329,7 +340,9 @@ function GameCard({
             />
             <strong className="text-base">{game.away}</strong>
             <span className="text-xs text-muted-foreground">
-              {showScore ? scoreLabel(game.awayScore) : '-'}
+              {showScore
+                ? scoreLabel(game.awayScore)
+                : game.awayStartingPitcherName ?? '선발 미정'}
             </span>
           </div>
 
@@ -343,14 +356,16 @@ function GameCard({
             />
             <strong className="text-base">{game.home}</strong>
             <span className="text-xs text-muted-foreground">
-              {showScore ? scoreLabel(game.homeScore) : '-'}
+              {showScore
+                ? scoreLabel(game.homeScore)
+                : game.homeStartingPitcherName ?? '선발 미정'}
             </span>
           </div>
         </div>
 
         <div className="rounded-lg bg-muted/60 p-3">
           <p className="mb-2 text-center text-xs font-semibold text-muted-foreground">
-            AI 예측 확률
+            데이터 예측 확률
           </p>
           <div className="grid grid-cols-3 gap-2 text-center text-xs">
             <div><strong>{formatProbability(game.awayPct)}</strong><p>{game.away} 승</p></div>
@@ -503,6 +518,10 @@ export function KboDashboard() {
             userOdds: game.userOdds,
             awayScore: game.awayScore,
             homeScore: game.homeScore,
+            awayStartingPitcherName:
+              normalizeNullableText(game.awayStartingPitcherName),
+            homeStartingPitcherName:
+              normalizeNullableText(game.homeStartingPitcherName),
             cancelReason: game.cancelReason,
           }
         },
@@ -550,7 +569,7 @@ export function KboDashboard() {
           <div className="flex max-w-2xl flex-col gap-3">
             <Badge variant="secondary" className="w-fit"><Sparkles data-icon="inline-start" />데이터 기반 KBO 승부예측</Badge>
             <h1 className="text-balance text-3xl font-black tracking-tight md:text-4xl">오늘의 승부, 당신의 선택은?</h1>
-            <p className="max-w-xl text-pretty text-sm leading-relaxed text-primary-foreground/70 md:text-base">선발, 타선, 불펜 데이터를 분석한 예측을 확인하고 야구팬들과 함께 오늘의 승자를 맞혀보세요.</p>
+            <p className="max-w-xl text-pretty text-sm leading-relaxed text-primary-foreground/70 md:text-base">팀 기록과 선발 데이터를 바탕으로 계산한 예측을 확인하고 야구팬들과 함께 오늘의 승자를 맞혀보세요.</p>
           </div>
         </section>
 

@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
@@ -19,6 +20,13 @@ public class StartingPitcherCollector {
     private final OfficialStartingPitcherParser parser;
 
     public StartingPitcherCollectionBatch collect(LocalDate date) {
+        return collect(date, null);
+    }
+
+    public StartingPitcherCollectionBatch collect(
+            LocalDate date,
+            Set<String> targetExternalGameIds
+    ) {
         OfficialStartingPitcherParser.ParsedStartingPitcherList parsed =
                 parser.parseGameList(source.fetchGameList(date), date);
 
@@ -27,6 +35,10 @@ public class StartingPitcherCollector {
         List<String> errors = new ArrayList<>();
 
         for (StartingPitcherCandidate candidate : parsed.candidates()) {
+            if (targetExternalGameIds != null
+                    && !targetExternalGameIds.contains(candidate.externalGameId())) {
+                continue;
+            }
             CollectedPitcherSeasonStat seasonStat = null;
             try {
                 String cacheKey = candidate.kboPlayerId()

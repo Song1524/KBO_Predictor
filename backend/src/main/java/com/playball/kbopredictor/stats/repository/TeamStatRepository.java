@@ -22,9 +22,9 @@ public interface TeamStatRepository extends JpaRepository<TeamStat, Long> {
             LocalDate cutoffExclusive
     );
 
-    Optional<TeamStat> findTopByTeamIdAndStatDateBeforeAndCollectedAtBeforeOrderByStatDateDesc(
+    Optional<TeamStat> findTopByTeamIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
             Long teamId,
-            LocalDate cutoffExclusive,
+            LocalDate cutoffInclusive,
             LocalDateTime availableBefore
     );
 }

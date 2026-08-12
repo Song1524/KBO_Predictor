@@ -20,9 +20,9 @@ public interface PitcherStatRepository extends JpaRepository<PitcherStat, Long> 
             LocalDate cutoffExclusive
     );
 
-    Optional<PitcherStat> findTopByPlayerIdAndStatDateBeforeAndCollectedAtBeforeOrderByStatDateDesc(
+    Optional<PitcherStat> findTopByPlayerIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
             Long playerId,
-            LocalDate cutoffExclusive,
+            LocalDate cutoffInclusive,
             LocalDateTime availableBefore
     );
 }

@@ -91,6 +91,33 @@ public class PregameDataSyncScheduler {
         }
     }
 
+    @Scheduled(
+            cron = "${app.kbo-data.pregame-scheduler.starting-pitchers-retry-cron:0 30 15-17 * * *}",
+            zone = "${app.kbo-data.pregame-scheduler.zone:Asia/Seoul}"
+    )
+    public void retryMissingStartingPitchers() {
+        if (!running.compareAndSet(false, true)) {
+            log.info("KBO 경기 전 데이터 수집이 이미 실행 중이어서 선발투수 재시도를 건너뜁니다.");
+            return;
+        }
+        LocalDate today = LocalDate.now(clock);
+        try {
+            StartingPitcherSyncResponse response =
+                    startingPitcherSyncService.retryMissingBeforeStart(today);
+            if (response.insertedCount() > 0 || response.updatedCount() > 0) {
+                generatePredictions(today);
+            }
+        } catch (RuntimeException exception) {
+            log.error(
+                    "KBO 미발표 선발투수 재시도 실패 - 다음 실행에서 재시도: gameDate={}",
+                    today,
+                    exception
+            );
+        } finally {
+            running.set(false);
+        }
+    }
+
     private void generatePredictions(LocalDate date) {
         try {
             predictionGenerationService.generateForDate(date);

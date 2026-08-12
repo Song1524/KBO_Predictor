@@ -50,6 +50,8 @@ class OfficialStartingPitcherParserTest {
 
         assertThat(result.sourceGameCount()).isEqualTo(2);
         assertThat(result.candidates()).hasSize(2);
+        assertThat(result.candidates().get(0).externalGameId())
+                .isEqualTo("20260811HHOB0");
         assertThat(result.candidates().get(0).side())
                 .isEqualTo(StartingPitcherSide.AWAY);
         assertThat(result.candidates().get(0).kboPlayerId()).isEqualTo("56719");

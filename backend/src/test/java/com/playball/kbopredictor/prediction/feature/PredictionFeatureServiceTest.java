@@ -3,6 +3,8 @@ package com.playball.kbopredictor.prediction.feature;
 import com.playball.kbopredictor.game.entity.Game;
 import com.playball.kbopredictor.game.entity.GameStatus;
 import com.playball.kbopredictor.game.repository.GameRepository;
+import com.playball.kbopredictor.player.entity.Player;
+import com.playball.kbopredictor.stats.entity.PitcherStat;
 import com.playball.kbopredictor.stats.entity.StartingPitcher;
 import com.playball.kbopredictor.stats.entity.StartingPitcherSide;
 import com.playball.kbopredictor.stats.entity.TeamRecentFormValues;
@@ -87,15 +89,15 @@ class PredictionFeatureServiceTest {
     }
 
     @Test
-    void usesOnlySnapshotsDatedAndCollectedBeforeGameStart() {
+    void previousDaySnapshotRemainsAvailableWhenCollectedBeforeGameStart() {
         TeamStat homeStat = stat(home, GAME_DATE.minusDays(1), GAME_START.minusHours(10));
         TeamStat awayStat = stat(away, GAME_DATE.minusDays(1), GAME_START.minusHours(10));
         when(teamStatRepository
-                .findTopByTeamIdAndStatDateBeforeAndCollectedAtBeforeOrderByStatDateDesc(
+                .findTopByTeamIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
                         1L, GAME_DATE, GAME_START
                 )).thenReturn(Optional.of(homeStat));
         when(teamStatRepository
-                .findTopByTeamIdAndStatDateBeforeAndCollectedAtBeforeOrderByStatDateDesc(
+                .findTopByTeamIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
                         2L, GAME_DATE, GAME_START
                 )).thenReturn(Optional.of(awayStat));
         when(startingPitcherRepository.findByGameIdAndSide(
@@ -116,19 +118,67 @@ class PredictionFeatureServiceTest {
                 .isEqualByComparingTo("0.667");
         assertThat(features.home().startingPitcher()).isNull();
         verify(teamStatRepository)
-                .findTopByTeamIdAndStatDateBeforeAndCollectedAtBeforeOrderByStatDateDesc(
+                .findTopByTeamIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
                         1L, GAME_DATE, GAME_START
                 );
     }
 
     @Test
-    void unavailableStatsAndPitcherAnnouncedAfterStartStayExplicitlyMissing() {
+    void sameDayTeamAndPitcherSnapshotsCollectedBeforeStartAreIncluded() {
+        TeamStat homeStat = stat(home, GAME_DATE, GAME_START.minusHours(12));
+        TeamStat awayStat = stat(away, GAME_DATE, GAME_START.minusHours(12));
         when(teamStatRepository
-                .findTopByTeamIdAndStatDateBeforeAndCollectedAtBeforeOrderByStatDateDesc(
+                .findTopByTeamIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
+                        1L, GAME_DATE, GAME_START
+                )).thenReturn(Optional.of(homeStat));
+        when(teamStatRepository
+                .findTopByTeamIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
+                        2L, GAME_DATE, GAME_START
+                )).thenReturn(Optional.of(awayStat));
+
+        Player pitcher = Player.create(
+                "61101", home, "임찬규", GAME_START.minusHours(3)
+        );
+        ReflectionTestUtils.setField(pitcher, "id", 101L);
+        StartingPitcher announced = StartingPitcher.create(
+                game, home, pitcher, StartingPitcherSide.HOME,
+                GAME_START.minusHours(3)
+        );
+        PitcherStat pitcherStat = PitcherStat.create(pitcher, 2026, GAME_DATE);
+        pitcherStat.update(
+                new BigDecimal("3.21"), 9, 4, "120 1/3",
+                new BigDecimal("1.18"), GAME_START.minusHours(3)
+        );
+        when(startingPitcherRepository.findByGameIdAndSide(
+                10L, StartingPitcherSide.HOME
+        )).thenReturn(Optional.of(announced));
+        when(startingPitcherRepository.findByGameIdAndSide(
+                10L, StartingPitcherSide.AWAY
+        )).thenReturn(Optional.empty());
+        when(pitcherStatRepository
+                .findTopByPlayerIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
+                        101L, GAME_DATE, GAME_START
+                )).thenReturn(Optional.of(pitcherStat));
+
+        PredictionFeatures features = service.build(10L);
+
+        assertThat(features.home().teamStatDate()).isEqualTo(GAME_DATE);
+        assertThat(features.home().startingPitcher().playerName()).isEqualTo("임찬규");
+        assertThat(features.home().startingPitcher().statDate()).isEqualTo(GAME_DATE);
+        assertThat(features.home().startingPitcher().era())
+                .isEqualByComparingTo("3.21");
+        assertThat(features.home().startingPitcher().whip())
+                .isEqualByComparingTo("1.18");
+    }
+
+    @Test
+    void snapshotsCollectedAfterStartAndLatePitcherStayExplicitlyMissing() {
+        when(teamStatRepository
+                .findTopByTeamIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
                         1L, GAME_DATE, GAME_START
                 )).thenReturn(Optional.empty());
         when(teamStatRepository
-                .findTopByTeamIdAndStatDateBeforeAndCollectedAtBeforeOrderByStatDateDesc(
+                .findTopByTeamIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
                         2L, GAME_DATE, GAME_START
                 )).thenReturn(Optional.empty());
         StartingPitcher late = instantiate(StartingPitcher.class);
@@ -146,7 +196,7 @@ class PredictionFeatureServiceTest {
         assertThat(features.home().seasonWinRate()).isNull();
         assertThat(features.home().startingPitcher()).isNull();
         verify(pitcherStatRepository, never())
-                .findTopByPlayerIdAndStatDateBeforeAndCollectedAtBeforeOrderByStatDateDesc(
+                .findTopByPlayerIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
                         org.mockito.ArgumentMatchers.anyLong(),
                         org.mockito.ArgumentMatchers.any(),
                         org.mockito.ArgumentMatchers.any()

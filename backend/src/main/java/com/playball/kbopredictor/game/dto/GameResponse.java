@@ -5,6 +5,7 @@ import com.playball.kbopredictor.game.entity.GameResult;
 import com.playball.kbopredictor.game.entity.GameStatus;
 import com.playball.kbopredictor.prediction.dto.GameOddsResponse;
 import com.playball.kbopredictor.prediction.dto.SystemPredictionResponse;
+import com.playball.kbopredictor.stats.entity.StartingPitcher;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -23,6 +24,11 @@ public record GameResponse(
         Long awayTeamId,
         String awayTeamName,
 
+        Long homeStartingPitcherPlayerId,
+        String homeStartingPitcherName,
+        Long awayStartingPitcherPlayerId,
+        String awayStartingPitcherName,
+
         String stadium,
         GameStatus status,
         Integer homeScore,
@@ -39,7 +45,9 @@ public record GameResponse(
     public static GameResponse from(
             Game game,
             SystemPredictionResponse aiPrediction,
-            GameOddsResponse userOdds
+            GameOddsResponse userOdds,
+            StartingPitcher homeStartingPitcher,
+            StartingPitcher awayStartingPitcher
     ) {
         return new GameResponse(
                 game.getId(),
@@ -53,6 +61,11 @@ public record GameResponse(
 
                 game.getAwayTeam().getId(),
                 game.getAwayTeam().getName(),
+
+                playerId(homeStartingPitcher),
+                playerName(homeStartingPitcher),
+                playerId(awayStartingPitcher),
+                playerName(awayStartingPitcher),
 
                 game.getStadium(),
                 game.getStatus(),
@@ -69,5 +82,13 @@ public record GameResponse(
                 aiPrediction,
                 userOdds
         );
+    }
+
+    private static Long playerId(StartingPitcher startingPitcher) {
+        return startingPitcher == null ? null : startingPitcher.getPlayer().getId();
+    }
+
+    private static String playerName(StartingPitcher startingPitcher) {
+        return startingPitcher == null ? null : startingPitcher.getPlayer().getName();
     }
 }
