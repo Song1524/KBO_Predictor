@@ -17,7 +17,6 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
 
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -51,6 +50,11 @@ class KboGameSyncSchedulerTest {
                 "statusRefreshLeadMinutes",
                 60
         );
+        ReflectionTestUtils.setField(
+                scheduler,
+                "missingScheduleRetryMinutes",
+                60
+        );
     }
 
     @Test
@@ -66,23 +70,64 @@ class KboGameSyncSchedulerTest {
     }
 
     @Test
-    void todayWithoutActiveGamesDoesNotCallOfficialDataSync() {
+    void missingTodayScheduleTriggersRecoverySync() {
         when(gameRepository.findByGameDateOrderByGameTimeAsc(TODAY))
                 .thenReturn(List.of());
+        when(gameSyncService.sync(TODAY)).thenReturn(emptyResponse());
 
         scheduler.refreshTodayGameStatuses();
 
-        verify(gameSyncService, never()).sync(TODAY);
+        verify(gameSyncService).sync(TODAY);
     }
 
     @Test
-    void scheduledGameBeforeRefreshWindowDoesNotCallOfficialDataSync() {
+    void successfulEmptyScheduleIsThrottledUntilRetryInterval() {
         when(gameRepository.findByGameDateOrderByGameTimeAsc(TODAY))
-                .thenReturn(List.of(game(GameStatus.SCHEDULED, LocalTime.of(18, 30))));
+                .thenReturn(List.of());
+        when(gameSyncService.sync(TODAY)).thenReturn(emptyResponse());
 
         scheduler.refreshTodayGameStatuses();
+        scheduler.refreshTodayGameStatuses();
 
-        verify(gameSyncService, never()).sync(TODAY);
+        verify(gameSyncService).sync(TODAY);
+    }
+
+    @Test
+    void failedMissingScheduleRequestRetriesOnNextExecution() {
+        when(gameRepository.findByGameDateOrderByGameTimeAsc(TODAY))
+                .thenReturn(List.of());
+        when(gameSyncService.sync(TODAY))
+                .thenThrow(new GameDataCollectionException("KBO 요청 실패"))
+                .thenReturn(emptyResponse());
+
+        scheduler.refreshTodayGameStatuses();
+        scheduler.refreshTodayGameStatuses();
+
+        verify(gameSyncService, times(2)).sync(TODAY);
+    }
+
+    @Test
+    void terminalGamesAreVerifiedOnceAfterStartupThenStopRefreshing() {
+        when(gameRepository.findByGameDateOrderByGameTimeAsc(TODAY))
+                .thenReturn(List.of(game(GameStatus.FINISHED, LocalTime.of(18, 30))));
+        when(gameSyncService.sync(TODAY)).thenReturn(response());
+
+        scheduler.refreshTodayGameStatuses();
+        scheduler.refreshTodayGameStatuses();
+
+        verify(gameSyncService).sync(TODAY);
+    }
+
+    @Test
+    void scheduledGameIsVerifiedOnceAfterStartupThenWaitsForRefreshWindow() {
+        when(gameRepository.findByGameDateOrderByGameTimeAsc(TODAY))
+                .thenReturn(List.of(game(GameStatus.SCHEDULED, LocalTime.of(18, 30))));
+        when(gameSyncService.sync(TODAY)).thenReturn(response());
+
+        scheduler.refreshTodayGameStatuses();
+        scheduler.refreshTodayGameStatuses();
+
+        verify(gameSyncService).sync(TODAY);
     }
 
     @Test
@@ -140,6 +185,24 @@ class KboGameSyncSchedulerTest {
                 1,
                 0,
                 1,
+                0,
+                List.of(),
+                NOW,
+                NOW.plusSeconds(1)
+        );
+    }
+
+    private GameSyncResponse emptyResponse() {
+        return new GameSyncResponse(
+                TODAY,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0,
                 List.of(),
                 NOW,

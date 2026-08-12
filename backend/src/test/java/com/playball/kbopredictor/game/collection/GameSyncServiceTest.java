@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -87,6 +88,54 @@ class GameSyncServiceTest {
                         GameStatus.SCHEDULED,
                         GameStatus.SCHEDULED
                 ));
+    }
+
+    @Test
+    void fiveCollectedGamesAreAllStored() {
+        List<CollectedGame> games = List.of(
+                scheduled("20260812LGOB0", "LG", "OB"),
+                scheduled("20260812HHKT0", "HH", "KT"),
+                scheduled("20260812HTNC0", "HT", "NC"),
+                scheduled("20260812SKWO0", "SK", "WO"),
+                scheduled("20260812SSLT0", "SS", "LT")
+        );
+        when(gameDataCollector.collect(TARGET_DATE)).thenReturn(
+                new GameCollectionBatch(5, games, List.of())
+        );
+        for (int index = 0; index < games.size(); index++) {
+            CollectedGame game = games.get(index);
+            when(gameUpsertService.upsert(game)).thenReturn(new GameUpsertResult(
+                    GameUpsertAction.INSERTED,
+                    (long) index + 1,
+                    null,
+                    GameStatus.SCHEDULED,
+                    null,
+                    null,
+                    false
+            ));
+        }
+
+        GameSyncResponse response = service.sync(TARGET_DATE);
+
+        assertThat(response.collectedGameCount()).isEqualTo(5);
+        assertThat(response.insertedCount()).isEqualTo(5);
+        assertThat(response.failedCount()).isZero();
+        games.forEach(game -> verify(gameUpsertService).upsert(game));
+    }
+
+    @Test
+    void emptyOfficialScheduleCreatesNoGames() {
+        when(gameDataCollector.collect(TARGET_DATE)).thenReturn(
+                new GameCollectionBatch(0, List.of(), List.of())
+        );
+
+        GameSyncResponse response = service.sync(TARGET_DATE);
+
+        assertThat(response.sourceRowCount()).isZero();
+        assertThat(response.collectedGameCount()).isZero();
+        assertThat(response.insertedCount()).isZero();
+        verifyNoInteractions(gameUpsertService);
+        verifyNoMoreInteractions(gameSettlementCoordinator);
     }
 
     @Test

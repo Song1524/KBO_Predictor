@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 @Component
@@ -38,12 +39,19 @@ public class KboGameSyncScheduler {
     private final GameRepository gameRepository;
     private final Clock clock;
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private final AtomicReference<EmptyScheduleCheck> emptyScheduleCheck =
+            new AtomicReference<>();
+    private final AtomicReference<LocalDate> verifiedScheduleDate =
+            new AtomicReference<>();
 
     @Value("${app.kbo-data.sync-scheduler.look-ahead-days:7}")
     private int lookAheadDays;
 
     @Value("${app.kbo-data.sync-scheduler.status-refresh-lead-minutes:60}")
     private int statusRefreshLeadMinutes;
+
+    @Value("${app.kbo-data.sync-scheduler.missing-schedule-retry-minutes:60}")
+    private int missingScheduleRetryMinutes;
 
     @Scheduled(
             cron = "${app.kbo-data.sync-scheduler.schedule-cron:0 0 6 * * *}",
@@ -87,6 +95,10 @@ public class KboGameSyncScheduler {
                     );
                 }
             }
+            responses.stream()
+                    .filter(response -> response.targetDate().equals(today))
+                    .findFirst()
+                    .ifPresent(response -> rememberSyncResult(today, response));
             logSummary(
                     "일정 수집",
                     target,
@@ -133,6 +145,7 @@ public class KboGameSyncScheduler {
 
             try {
                 GameSyncResponse response = gameSyncService.sync(today);
+                rememberSyncResult(today, response);
                 logSummary(
                         "당일 상태 갱신",
                         today.toString(),
@@ -154,9 +167,31 @@ public class KboGameSyncScheduler {
     }
 
     private RefreshDecision decideStatusRefresh(LocalDate today) {
-        List<Game> activeGames = gameRepository
-                .findByGameDateOrderByGameTimeAsc(today)
-                .stream()
+        List<Game> todayGames = gameRepository
+                .findByGameDateOrderByGameTimeAsc(today);
+        if (todayGames.isEmpty()) {
+            EmptyScheduleCheck previousCheck = emptyScheduleCheck.get();
+            LocalDateTime retryFrom = previousCheck == null
+                    ? null
+                    : previousCheck.checkedAt().plusMinutes(
+                            Math.max(1, missingScheduleRetryMinutes)
+                    );
+            if (previousCheck != null
+                    && previousCheck.targetDate().equals(today)
+                    && LocalDateTime.now(clock).isBefore(retryFrom)) {
+                return new RefreshDecision(
+                        false,
+                        "빈 일정 재확인 시각 전(" + retryFrom + ")"
+                );
+            }
+            return new RefreshDecision(true, null);
+        }
+
+        if (!today.equals(verifiedScheduleDate.get())) {
+            return new RefreshDecision(true, null);
+        }
+
+        List<Game> activeGames = todayGames.stream()
                 .filter(game -> game.getStatus() == GameStatus.SCHEDULED
                         || game.getStatus() == GameStatus.IN_PROGRESS)
                 .toList();
@@ -190,6 +225,27 @@ public class KboGameSyncScheduler {
             );
         }
         return new RefreshDecision(true, null);
+    }
+
+    private void rememberSyncResult(
+            LocalDate targetDate,
+            GameSyncResponse response
+    ) {
+        if (response.failedCount() == 0) {
+            verifiedScheduleDate.set(targetDate);
+        } else {
+            verifiedScheduleDate.set(null);
+        }
+
+        if (response.collectedGameCount() == 0
+                && response.failedCount() == 0) {
+            emptyScheduleCheck.set(new EmptyScheduleCheck(
+                    targetDate,
+                    LocalDateTime.now(clock)
+            ));
+            return;
+        }
+        emptyScheduleCheck.set(null);
     }
 
     private void logSummary(
@@ -301,5 +357,11 @@ public class KboGameSyncScheduler {
     }
 
     private record RefreshDecision(boolean shouldRefresh, String reason) {
+    }
+
+    private record EmptyScheduleCheck(
+            LocalDate targetDate,
+            LocalDateTime checkedAt
+    ) {
     }
 }

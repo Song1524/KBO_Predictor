@@ -18,6 +18,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class GameSyncService {
 
+    private static final String SOURCE = "KBO_OFFICIAL_SCHEDULE";
     private static final Logger log = LoggerFactory.getLogger(
             GameSyncService.class
     );
@@ -30,16 +31,25 @@ public class GameSyncService {
 
     public GameSyncResponse sync(LocalDate date) {
         LocalDateTime startedAt = LocalDateTime.now(clock);
-        log.info("KBO 경기 동기화 시작: targetDate={}", date);
+        log.info(
+                "KBO 경기 동기화 시작: source={}, targetDate={}",
+                SOURCE,
+                date
+        );
 
         GameCollectionBatch batch;
         try {
             batch = gameDataCollector.collect(date);
         } catch (RuntimeException exception) {
             log.error(
-                    "KBO 경기 동기화 실패: targetDate={}, error={}",
+                    "KBO 경기 동기화 실패: source={}, targetDate={}, error={}, elapsedMs={}",
+                    SOURCE,
                     date,
                     exception.getMessage(),
+                    Duration.between(
+                            startedAt,
+                            LocalDateTime.now(clock)
+                    ).toMillis(),
                     exception
             );
             throw exception;
@@ -55,16 +65,25 @@ public class GameSyncService {
         }
 
         LocalDateTime startedAt = LocalDateTime.now(clock);
-        log.info("KBO 경기 다중 날짜 동기화 시작: targetDates={}", targets);
+        log.info(
+                "KBO 경기 다중 날짜 동기화 시작: source={}, targetDates={}",
+                SOURCE,
+                targets
+        );
 
         Map<LocalDate, GameCollectionBatch> batches;
         try {
             batches = gameDataCollector.collectDates(targets);
         } catch (RuntimeException exception) {
             log.error(
-                    "KBO 경기 다중 날짜 동기화 실패: targetDates={}, error={}",
+                    "KBO 경기 다중 날짜 동기화 실패: source={}, targetDates={}, error={}, elapsedMs={}",
+                    SOURCE,
                     targets,
                     exception.getMessage(),
+                    Duration.between(
+                            startedAt,
+                            LocalDateTime.now(clock)
+                    ).toMillis(),
                     exception
             );
             throw exception;
@@ -123,7 +142,8 @@ public class GameSyncService {
                         + safeMessage(exception);
                 errors.add(error);
                 log.warn(
-                        "KBO 경기 단건 저장 실패: targetDate={}, externalGameId={}, error={}",
+                        "KBO 경기 단건 저장 실패: source={}, targetDate={}, externalGameId={}, error={}",
+                        SOURCE,
                         date,
                         game.externalGameId(),
                         exception.getMessage()
@@ -143,7 +163,8 @@ public class GameSyncService {
                         + safeMessage(exception);
                 errors.add(error);
                 log.error(
-                        "KBO 경기 자동 정산 실패: targetDate={}, externalGameId={}, gameId={}, error={}",
+                        "KBO 경기 자동 정산 실패: source={}, targetDate={}, externalGameId={}, gameId={}, error={}",
+                        SOURCE,
                         date,
                         game.externalGameId(),
                         result.gameId(),
@@ -182,7 +203,8 @@ public class GameSyncService {
         );
 
         log.info(
-                "KBO 경기 동기화 완료: targetDate={}, sourceRows={}, collected={}, inserted={}, updated={}, statusChanged={}, finished={}, cancelled={}, settlementSuccess={}, failed={}, elapsedMs={}",
+                "KBO 경기 동기화 완료: source={}, targetDate={}, sourceRows={}, collected={}, inserted={}, updated={}, statusChanged={}, finished={}, cancelled={}, settlementSuccess={}, failed={}, elapsedMs={}",
+                SOURCE,
                 date,
                 response.sourceRowCount(),
                 response.collectedGameCount(),
@@ -195,6 +217,14 @@ public class GameSyncService {
                 response.failedCount(),
                 Duration.between(startedAt, finishedAt).toMillis()
         );
+        if (!response.errors().isEmpty()) {
+            log.warn(
+                    "KBO 경기 동기화 부분 실패: source={}, targetDate={}, errors={}",
+                    SOURCE,
+                    date,
+                    response.errors()
+            );
+        }
         return response;
     }
 

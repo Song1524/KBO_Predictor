@@ -131,6 +131,7 @@ app:
       status-fixed-delay-ms: 300000
       status-initial-delay-ms: 30000
       status-refresh-lead-minutes: 60
+      missing-schedule-retry-minutes: 60
     pregame-scheduler:
       enabled: true
       zone: Asia/Seoul

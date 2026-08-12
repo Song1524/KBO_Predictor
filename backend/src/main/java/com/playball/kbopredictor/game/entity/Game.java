@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Objects;
 
 @Entity
 @Table(name = "games")
@@ -135,6 +136,9 @@ public class Game {
             String cancelReason,
             LocalDateTime now
     ) {
+        boolean scheduleChanged = !Objects.equals(this.gameDate, gameDate)
+                || !Objects.equals(this.gameTime, gameTime);
+
         this.externalGameId = externalGameId;
         this.season = season;
         this.gameDate = gameDate;
@@ -147,9 +151,11 @@ public class Game {
         this.awayScore = awayScore;
         this.winnerTeam = winnerTeam;
         this.result = result;
-        this.predictionCloseAt = gameTime == null
-                ? null
-                : LocalDateTime.of(gameDate, gameTime).minusMinutes(30);
+        if (this.predictionCloseAt == null || scheduleChanged) {
+            this.predictionCloseAt = gameTime == null
+                    ? null
+                    : LocalDateTime.of(gameDate, gameTime).minusMinutes(30);
+        }
         this.cancelReason = cancelReason;
         this.updatedAt = now;
     }

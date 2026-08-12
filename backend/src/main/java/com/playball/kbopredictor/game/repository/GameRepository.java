@@ -110,6 +110,13 @@ public interface GameRepository extends JpaRepository<Game, Long> {
     );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<Game> findByGameDateAndHomeTeamIdAndAwayTeamIdOrderByGameTimeAsc(
+            LocalDate gameDate,
+            Long homeTeamId,
+            Long awayTeamId
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select game from Game game where game.id = :gameId")
     Optional<Game> findByIdForUpdate(@Param("gameId") Long gameId);
 

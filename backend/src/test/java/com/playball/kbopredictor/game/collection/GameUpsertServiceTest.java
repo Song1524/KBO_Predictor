@@ -24,10 +24,12 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -107,6 +109,13 @@ class GameUpsertServiceTest {
         assertThat(inserted.getPredictionCloseAt())
                 .isEqualTo(LocalDateTime.of(GAME_DATE, GAME_TIME).minusMinutes(30));
 
+        LocalDateTime preservedCloseAt = GAME_DATE.atTime(17, 45);
+        ReflectionTestUtils.setField(
+                inserted,
+                "predictionCloseAt",
+                preservedCloseAt
+        );
+
         when(gameRepository.findByExternalGameId("20260812LGOB0"))
                 .thenReturn(Optional.of(inserted));
 
@@ -114,7 +123,209 @@ class GameUpsertServiceTest {
         assertThat(updatedResult.action())
                 .isEqualTo(GameUpsertAction.UPDATED);
         assertThat(updatedResult.statusChanged()).isFalse();
+        assertThat(inserted.getPredictionCloseAt()).isEqualTo(preservedCloseAt);
         verify(gameRepository, times(2)).saveAndFlush(inserted);
+    }
+
+    @Test
+    void changedTimeUpdatesLegacyGameWithoutExternalId() {
+        Game existing = Game.createCollected(
+                null,
+                2026,
+                GAME_DATE,
+                GAME_TIME,
+                homeTeam,
+                awayTeam,
+                "잠실",
+                GameStatus.SCHEDULED,
+                null,
+                null,
+                null,
+                null,
+                null,
+                NOW.minusDays(1)
+        );
+        LocalTime changedTime = LocalTime.of(19, 0);
+        when(gameRepository.findByExternalGameId("20260812LGOB0"))
+                .thenReturn(Optional.empty());
+        when(gameRepository
+                .findByGameDateAndGameTimeAndHomeTeamIdAndAwayTeamId(
+                        GAME_DATE,
+                        changedTime,
+                        1L,
+                        2L
+                ))
+                .thenReturn(Optional.empty());
+        when(gameRepository
+                .findByGameDateAndHomeTeamIdAndAwayTeamIdOrderByGameTimeAsc(
+                        GAME_DATE,
+                        1L,
+                        2L
+                ))
+                .thenReturn(List.of(existing));
+
+        GameUpsertResult result = service.upsert(new CollectedGame(
+                "20260812LGOB0",
+                2026,
+                GAME_DATE,
+                changedTime,
+                "LG",
+                "OB",
+                "대전",
+                GameStatus.SCHEDULED,
+                null,
+                null,
+                null,
+                null
+        ));
+
+        assertThat(result.action()).isEqualTo(GameUpsertAction.UPDATED);
+        assertThat(existing.getExternalGameId()).isEqualTo("20260812LGOB0");
+        assertThat(existing.getGameTime()).isEqualTo(changedTime);
+        assertThat(existing.getStadium()).isEqualTo("대전");
+        assertThat(existing.getPredictionCloseAt())
+                .isEqualTo(GAME_DATE.atTime(changedTime).minusMinutes(30));
+        verify(gameRepository).saveAndFlush(existing);
+    }
+
+    @Test
+    void secondDoubleheaderGameIsInsertedInsteadOfOverwritingFirstGame() {
+        Game firstGame = Game.createCollected(
+                "20260812LGOB1",
+                2026,
+                GAME_DATE,
+                LocalTime.of(14, 0),
+                homeTeam,
+                awayTeam,
+                "잠실",
+                GameStatus.SCHEDULED,
+                null,
+                null,
+                null,
+                null,
+                null,
+                NOW.minusDays(1)
+        );
+        LocalTime secondGameTime = LocalTime.of(17, 0);
+        when(gameRepository.findByExternalGameId("20260812LGOB2"))
+                .thenReturn(Optional.empty());
+        when(gameRepository
+                .findByGameDateAndGameTimeAndHomeTeamIdAndAwayTeamId(
+                        GAME_DATE,
+                        secondGameTime,
+                        1L,
+                        2L
+                ))
+                .thenReturn(Optional.empty());
+        when(gameRepository
+                .findByGameDateAndHomeTeamIdAndAwayTeamIdOrderByGameTimeAsc(
+                        GAME_DATE,
+                        1L,
+                        2L
+                ))
+                .thenReturn(List.of(firstGame));
+
+        GameUpsertResult result = service.upsert(new CollectedGame(
+                "20260812LGOB2",
+                2026,
+                GAME_DATE,
+                secondGameTime,
+                "LG",
+                "OB",
+                "잠실",
+                GameStatus.SCHEDULED,
+                null,
+                null,
+                null,
+                null
+        ));
+
+        assertThat(result.action()).isEqualTo(GameUpsertAction.INSERTED);
+        assertThat(firstGame.getExternalGameId()).isEqualTo("20260812LGOB1");
+        assertThat(firstGame.getGameTime()).isEqualTo(LocalTime.of(14, 0));
+        ArgumentCaptor<Game> captor = ArgumentCaptor.forClass(Game.class);
+        verify(gameRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue()).isNotSameAs(firstGame);
+        assertThat(captor.getValue().getExternalGameId())
+                .isEqualTo("20260812LGOB2");
+    }
+
+    @Test
+    void missingTimeAndStadiumDoNotEraseKnownScheduleFields() {
+        Game existing = Game.createCollected(
+                "20260812LGOB0",
+                2026,
+                GAME_DATE,
+                GAME_TIME,
+                homeTeam,
+                awayTeam,
+                "잠실",
+                GameStatus.SCHEDULED,
+                null,
+                null,
+                null,
+                null,
+                null,
+                NOW.minusDays(1)
+        );
+        when(gameRepository.findByExternalGameId("20260812LGOB0"))
+                .thenReturn(Optional.of(existing));
+
+        service.upsert(new CollectedGame(
+                "20260812LGOB0",
+                2026,
+                GAME_DATE,
+                null,
+                "LG",
+                "OB",
+                null,
+                GameStatus.SCHEDULED,
+                null,
+                null,
+                null,
+                null
+        ));
+
+        assertThat(existing.getGameTime()).isEqualTo(GAME_TIME);
+        assertThat(existing.getStadium()).isEqualTo("잠실");
+        assertThat(existing.getPredictionCloseAt())
+                .isEqualTo(GAME_DATE.atTime(GAME_TIME).minusMinutes(30));
+    }
+
+    @Test
+    void incompleteScheduledResponseDoesNotRegressFinishedGame() {
+        Game existing = Game.createCollected(
+                "20260812LGOB0",
+                2026,
+                GAME_DATE,
+                GAME_TIME,
+                homeTeam,
+                awayTeam,
+                "잠실",
+                GameStatus.FINISHED,
+                5,
+                2,
+                homeTeam,
+                GameResult.HOME_WIN,
+                null,
+                NOW.minusDays(1)
+        );
+        when(gameRepository.findByExternalGameId("20260812LGOB0"))
+                .thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> service.upsert(collected(
+                GameStatus.SCHEDULED,
+                null,
+                null,
+                null
+        )))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("FINISHED -> SCHEDULED");
+
+        assertThat(existing.getStatus()).isEqualTo(GameStatus.FINISHED);
+        assertThat(existing.getHomeScore()).isEqualTo(5);
+        assertThat(existing.getAwayScore()).isEqualTo(2);
+        assertThat(existing.getResult()).isEqualTo(GameResult.HOME_WIN);
     }
 
     @Test

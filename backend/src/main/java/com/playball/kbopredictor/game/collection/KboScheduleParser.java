@@ -52,13 +52,17 @@ public class KboScheduleParser {
 
         for (JsonNode rowNode : rows) {
             rowIndex++;
-            List<Cell> cells = readCells(rowNode.path("row"));
-            if (cells.isEmpty()) {
+            JsonNode cellNodes = rowNode.get("row");
+            if (cellNodes == null
+                    || !cellNodes.isArray()
+                    || cellNodes.isEmpty()) {
+                errors.add("행 " + rowIndex + ": 일정 row 배열이 없습니다.");
                 continue;
             }
+            List<Cell> cells = readCells(cellNodes);
 
             int offset = 0;
-            if ("day".equals(cells.getFirst().cssClass())) {
+            if (hasCssClass(cells.getFirst().cssClass(), "day")) {
                 try {
                     currentDate = parseDate(
                             cells.getFirst().text(),
@@ -111,10 +115,6 @@ public class KboScheduleParser {
     }
 
     private List<Cell> readCells(JsonNode cellNodes) {
-        if (!cellNodes.isArray()) {
-            return List.of();
-        }
-
         List<Cell> cells = new ArrayList<>();
         for (JsonNode cellNode : cellNodes) {
             cells.add(new Cell(
@@ -123,6 +123,15 @@ public class KboScheduleParser {
             ));
         }
         return cells;
+    }
+
+    private boolean hasCssClass(String classes, String target) {
+        if (classes == null || classes.isBlank()) {
+            return false;
+        }
+        return Pattern.compile("\\s+")
+                .splitAsStream(classes.trim())
+                .anyMatch(target::equalsIgnoreCase);
     }
 
     private ParsedRow parseRow(

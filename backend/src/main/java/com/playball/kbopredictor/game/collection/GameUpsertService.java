@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -30,18 +32,11 @@ public class GameUpsertService {
         Team awayTeam = getTeam(collectedGame.awayTeamCode());
         LocalDateTime now = LocalDateTime.now(clock);
 
-        Optional<Game> existingGame = gameRepository.findByExternalGameId(
-                collectedGame.externalGameId()
+        Optional<Game> existingGame = findExistingGame(
+                collectedGame,
+                homeTeam,
+                awayTeam
         );
-        if (existingGame.isEmpty() && collectedGame.gameTime() != null) {
-            existingGame = gameRepository
-                    .findByGameDateAndGameTimeAndHomeTeamIdAndAwayTeamId(
-                            collectedGame.gameDate(),
-                            collectedGame.gameTime(),
-                            homeTeam.getId(),
-                            awayTeam.getId()
-                    );
-        }
 
         Team winnerTeam = determineWinner(
                 collectedGame.result(),
@@ -51,18 +46,26 @@ public class GameUpsertService {
 
         if (existingGame.isPresent()) {
             Game game = existingGame.get();
+            validateStatusTransition(game.getStatus(), collectedGame.status());
             GameStatusSnapshot previous = snapshot(game);
             boolean terminalDataChanged = isTerminal(previous.status())
                     && terminalDataChanged(previous, collectedGame, homeTeam, awayTeam);
+            LocalTime gameTime = collectedGame.gameTime() == null
+                    ? game.getGameTime()
+                    : collectedGame.gameTime();
+            String stadium = collectedGame.stadium() == null
+                    || collectedGame.stadium().isBlank()
+                    ? game.getStadium()
+                    : collectedGame.stadium();
 
             game.updateCollected(
                     collectedGame.externalGameId(),
                     collectedGame.season(),
                     collectedGame.gameDate(),
-                    collectedGame.gameTime(),
+                    gameTime,
                     homeTeam,
                     awayTeam,
-                    collectedGame.stadium(),
+                    stadium,
                     collectedGame.status(),
                     collectedGame.homeScore(),
                     collectedGame.awayScore(),
@@ -109,6 +112,75 @@ public class GameUpsertService {
                 newGame.getResult(),
                 false
         );
+    }
+
+    private Optional<Game> findExistingGame(
+            CollectedGame collectedGame,
+            Team homeTeam,
+            Team awayTeam
+    ) {
+        Optional<Game> existingGame = gameRepository.findByExternalGameId(
+                collectedGame.externalGameId()
+        );
+        if (existingGame.isPresent()) {
+            return existingGame;
+        }
+
+        if (collectedGame.gameTime() != null) {
+            existingGame = gameRepository
+                    .findByGameDateAndGameTimeAndHomeTeamIdAndAwayTeamId(
+                            collectedGame.gameDate(),
+                            collectedGame.gameTime(),
+                            homeTeam.getId(),
+                            awayTeam.getId()
+                    );
+            if (existingGame.isPresent()) {
+                return existingGame;
+            }
+        }
+
+        List<Game> matchupCandidates = gameRepository
+                .findByGameDateAndHomeTeamIdAndAwayTeamIdOrderByGameTimeAsc(
+                        collectedGame.gameDate(),
+                        homeTeam.getId(),
+                        awayTeam.getId()
+                );
+        if (matchupCandidates.size() == 1
+                && matchupCandidates.getFirst().getExternalGameId() == null) {
+            return Optional.of(matchupCandidates.getFirst());
+        }
+        boolean containsLegacyCandidate = matchupCandidates.stream()
+                .anyMatch(game -> game.getExternalGameId() == null);
+        if (containsLegacyCandidate) {
+            throw new IllegalStateException(
+                    "externalGameId가 없는 동일 날짜/대진 후보를 안전하게 식별할 수 없습니다: "
+                            + collectedGame.gameDate()
+                            + " "
+                            + collectedGame.awayTeamCode()
+                            + "-"
+                            + collectedGame.homeTeamCode()
+            );
+        }
+        return Optional.empty();
+    }
+
+    private void validateStatusTransition(
+            GameStatus previousStatus,
+            GameStatus collectedStatus
+    ) {
+        boolean regressedFromInProgress = previousStatus
+                == GameStatus.IN_PROGRESS
+                && collectedStatus == GameStatus.SCHEDULED;
+        boolean regressedFromTerminal = isTerminal(previousStatus)
+                && !isTerminal(collectedStatus);
+        if (regressedFromInProgress || regressedFromTerminal) {
+            throw new IllegalStateException(
+                    "KBO 경기 상태가 역방향으로 변경되어 기존 데이터를 유지합니다: "
+                            + previousStatus
+                            + " -> "
+                            + collectedStatus
+            );
+        }
     }
 
     private Team getTeam(String kboTeamCode) {

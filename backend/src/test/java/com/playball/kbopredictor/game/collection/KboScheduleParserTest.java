@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class KboScheduleParserTest {
 
@@ -97,6 +98,61 @@ class KboScheduleParserTest {
         assertThat(batch.games().getFirst().status())
                 .isEqualTo(GameStatus.CANCELLED);
         assertThat(batch.games().getFirst().cancelReason()).isEqualTo("기타");
+    }
+
+    @Test
+    void dayCssClassCanContainAdditionalTokens() {
+        String json = """
+                {"rows":[{"row":[
+                  {"Text":"08.12(수)","Class":"day first"},
+                  {"Text":"<b>18:30</b>","Class":"time"},
+                  {"Text":"<span>LG</span><em><span>vs</span></em><span>두산</span>","Class":"play"},
+                  {"Text":"","Class":"relay"},
+                  {"Text":"","Class":""},
+                  {"Text":"","Class":""},
+                  {"Text":"","Class":""},
+                  {"Text":"잠실","Class":""},
+                  {"Text":"","Class":""}
+                ]}]}
+                """;
+
+        GameCollectionBatch batch = parser.parse(
+                json,
+                LocalDate.of(2026, 8, 12)
+        );
+
+        assertThat(batch.games()).hasSize(1);
+        assertThat(batch.games().getFirst().externalGameId())
+                .isEqualTo("20260812LGOB0");
+    }
+
+    @Test
+    void malformedRowIsReportedAndEmptyRowsRemainEmpty() {
+        GameCollectionBatch malformed = parser.parse(
+                "{\"rows\":[{\"unexpected\":[]}]}",
+                LocalDate.of(2026, 8, 12)
+        );
+        GameCollectionBatch empty = parser.parse(
+                "{\"rows\":[]}",
+                LocalDate.of(2026, 8, 12)
+        );
+
+        assertThat(malformed.games()).isEmpty();
+        assertThat(malformed.errors()).singleElement()
+                .asString()
+                .contains("row 배열");
+        assertThat(empty.games()).isEmpty();
+        assertThat(empty.errors()).isEmpty();
+    }
+
+    @Test
+    void missingRowsArrayFailsWithoutCreatingGames() {
+        assertThatThrownBy(() -> parser.parse(
+                "{}",
+                LocalDate.of(2026, 8, 12)
+        ))
+                .isInstanceOf(GameDataCollectionException.class)
+                .hasMessageContaining("rows 배열");
     }
 
     private CollectedGame game(GameCollectionBatch batch, String externalId) {
