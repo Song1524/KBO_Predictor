@@ -2,6 +2,9 @@ node_modules
 dist
 .env
 .env.*
+*.pem
+*.key
+letsencrypt
 .idea
 .git
 npm-debug.log*

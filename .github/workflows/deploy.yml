@@ -80,6 +80,23 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Validate frontend Docker and bootstrap Nginx configuration
+        run: |
+          set -euo pipefail
+
+          IMAGE_TAG=kbo-predictor-frontend-ci
+
+          DB_PASSWORD=ci-placeholder \
+            MYSQL_ROOT_PASSWORD=ci-placeholder \
+            docker compose config --quiet
+
+          docker build --tag "$IMAGE_TAG" frontend
+
+          # Certificate-absent first deployment: HTTP + ACME bootstrap config.
+          docker run --rm \
+            --add-host backend:127.0.0.1 \
+            "$IMAGE_TAG" nginx -t
+
   deploy:
     name: Deploy to EC2 with SSM
     runs-on: ubuntu-latest

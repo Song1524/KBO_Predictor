@@ -1,5 +1,8 @@
 # PLAYBALL KBO Predictor
 
+Production HTTPS setup and Let's Encrypt renewal instructions are documented in
+[`docs/HTTPS_DEPLOYMENT.md`](docs/HTTPS_DEPLOYMENT.md).
+
 Spring Boot 4 / Java 21 백엔드와 React / Vite 프론트엔드로 구성된 KBO 승부예측 서비스입니다. DB 스키마는 Flyway가 관리하며 운영 기본 예측 모델은 `baseline-v1`입니다.
 
 ## 필요 프로그램

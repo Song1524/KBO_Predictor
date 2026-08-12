@@ -65,6 +65,10 @@ services:
         condition: service_healthy
     ports:
       - "${FRONTEND_PORT:-3000}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - "${LETSENCRYPT_PATH:-./certbot/letsencrypt}:/etc/letsencrypt:ro"
+      - "${CERTBOT_WEBROOT_PATH:-./certbot/www}:/var/www/certbot:ro"
 
 volumes:
   mysql-data:
