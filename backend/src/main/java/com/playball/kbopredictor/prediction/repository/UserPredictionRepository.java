@@ -1,8 +1,12 @@
 package com.playball.kbopredictor.prediction.repository;
 
 import com.playball.kbopredictor.prediction.entity.UserPrediction;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -43,4 +47,10 @@ public interface UserPredictionRepository
     boolean existsByGameIdAndSettledTrue(Long gameId);
 
     long countBySettledFalse();
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select prediction from UserPrediction prediction where prediction.id = :predictionId")
+    Optional<UserPrediction> findByIdForUpdate(
+            @Param("predictionId") Long predictionId
+    );
 }

@@ -58,6 +58,21 @@ public class PointService {
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
+    public void rewardSettlementCorrection(
+            User user,
+            UserPrediction prediction,
+            int payout
+    ) {
+        applyChange(
+                user,
+                prediction,
+                payout,
+                PointHistoryType.PREDICTION_REWARD,
+                "관리자 정산 보정: " + outcomeLabel(prediction) + " 예측 적중"
+        );
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
     public void refundCancelledGame(
             User user,
             UserPrediction prediction

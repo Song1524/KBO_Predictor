@@ -96,6 +96,27 @@ class PointServiceTest {
     }
 
     @Test
+    void settlementCorrectionRecordsExplicitPredictionReward() {
+        User user = TestEntities.user(2L, 900);
+        UserPrediction prediction = prediction(
+                user,
+                PredictionOutcome.HOME_WIN,
+                100
+        );
+
+        service.rewardSettlementCorrection(user, prediction, 200);
+
+        PointHistory history = savedHistory();
+        assertThat(user.getPoint()).isEqualTo(1_100);
+        assertThat(history.getType())
+                .isEqualTo(PointHistoryType.PREDICTION_REWARD);
+        assertThat(history.getPointChange()).isEqualTo(200);
+        assertThat(history.getBalanceAfter()).isEqualTo(1_100);
+        assertThat(history.getDescription())
+                .isEqualTo("관리자 정산 보정: 홈팀 승 예측 적중");
+    }
+
+    @Test
     void cancelledGameRefundRecordsPositiveChangeAndActualBalance() {
         User user = TestEntities.user(1L, 900);
         UserPrediction prediction = prediction(
