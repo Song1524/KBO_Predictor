@@ -68,9 +68,10 @@ public class KboGameDataCollector implements GameDataCollector {
             GameCollectionBatch scheduleBatch,
             LocalDate targetDate
     ) {
-        boolean hasFinishedGame = scheduleBatch.games().stream()
-                .anyMatch(game -> game.status() == GameStatus.FINISHED);
-        if (!hasFinishedGame) {
+        boolean requiresOfficialStatusCheck = scheduleBatch.games().stream()
+                .anyMatch(game -> game.status() == GameStatus.FINISHED
+                        || game.status() == GameStatus.IN_PROGRESS);
+        if (!requiresOfficialStatusCheck) {
             return scheduleBatch;
         }
 
@@ -84,10 +85,11 @@ public class KboGameDataCollector implements GameDataCollector {
                 .map(game -> confirmFinishedScore(
                         game,
                         scoreBatch.scoresByExternalGameId(),
+                        scoreBatch.statesByExternalGameId(),
                         errors
                 ))
                 .toList();
-        long finishedCount = scheduleBatch.games().stream()
+        long finishedCount = games.stream()
                 .filter(game -> game.status() == GameStatus.FINISHED)
                 .count();
         long confirmedCount = games.stream()
@@ -98,7 +100,7 @@ public class KboGameDataCollector implements GameDataCollector {
                 targetDate,
                 finishedCount,
                 confirmedCount,
-                finishedCount - confirmedCount
+                Math.max(0, finishedCount - confirmedCount)
         );
 
         return new GameCollectionBatch(
@@ -111,25 +113,50 @@ public class KboGameDataCollector implements GameDataCollector {
     private CollectedGame confirmFinishedScore(
             CollectedGame game,
             Map<String, OfficialFinalScore> officialScores,
+            Map<String, OfficialGameState> officialStates,
             List<String> errors
     ) {
-        if (game.status() != GameStatus.FINISHED) {
+        String externalGameId = game.externalGameId()
+                .toUpperCase(Locale.ROOT);
+        OfficialGameState officialState = officialStates.get(externalGameId);
+        if (officialState != null && !teamsMatch(game, officialState)) {
+            errors.add(game.externalGameId()
+                    + ": GameCenter team codes do not match the schedule");
             return game;
         }
 
-        OfficialFinalScore score = officialScores.get(
-                game.externalGameId().toUpperCase(Locale.ROOT)
-        );
+        GameStatus effectiveStatus = officialState == null
+                ? game.status()
+                : officialState.status();
+        if (effectiveStatus == GameStatus.SCHEDULED) {
+            return withStatus(game, GameStatus.SCHEDULED, null, null);
+        }
+        if (effectiveStatus == GameStatus.IN_PROGRESS) {
+            return withStatus(
+                    game,
+                    GameStatus.IN_PROGRESS,
+                    game.awayScore(),
+                    game.homeScore()
+            );
+        }
+        if (effectiveStatus == GameStatus.CANCELLED) {
+            return withStatus(game, GameStatus.CANCELLED, null, null);
+        }
+        if (effectiveStatus != GameStatus.FINISHED) {
+            return game;
+        }
+
+        OfficialFinalScore score = officialScores.get(externalGameId);
         if (score == null) {
             errors.add(game.externalGameId()
                     + ": final score is not confirmed by KBO GameCenter");
-            return withoutUnconfirmedFinalScore(game);
+            return withoutUnconfirmedFinalScore(game, effectiveStatus);
         }
         if (!score.awayTeamCode().equalsIgnoreCase(game.awayTeamCode())
                 || !score.homeTeamCode().equalsIgnoreCase(game.homeTeamCode())) {
             errors.add(game.externalGameId()
                     + ": GameCenter team codes do not match the schedule");
-            return withoutUnconfirmedFinalScore(game);
+            return withoutUnconfirmedFinalScore(game, effectiveStatus);
         }
 
         return new CollectedGame(
@@ -140,7 +167,7 @@ public class KboGameDataCollector implements GameDataCollector {
                 game.awayTeamCode(),
                 game.homeTeamCode(),
                 game.stadium(),
-                game.status(),
+                effectiveStatus,
                 score.awayScore(),
                 score.homeScore(),
                 score.result(),
@@ -149,7 +176,22 @@ public class KboGameDataCollector implements GameDataCollector {
         );
     }
 
-    private CollectedGame withoutUnconfirmedFinalScore(CollectedGame game) {
+    private boolean teamsMatch(
+            CollectedGame game,
+            OfficialGameState officialState
+    ) {
+        return officialState.awayTeamCode()
+                .equalsIgnoreCase(game.awayTeamCode())
+                && officialState.homeTeamCode()
+                .equalsIgnoreCase(game.homeTeamCode());
+    }
+
+    private CollectedGame withStatus(
+            CollectedGame game,
+            GameStatus status,
+            Integer awayScore,
+            Integer homeScore
+    ) {
         return new CollectedGame(
                 game.externalGameId(),
                 game.season(),
@@ -158,7 +200,30 @@ public class KboGameDataCollector implements GameDataCollector {
                 game.awayTeamCode(),
                 game.homeTeamCode(),
                 game.stadium(),
-                game.status(),
+                status,
+                awayScore,
+                homeScore,
+                null,
+                false,
+                status == GameStatus.CANCELLED
+                        ? game.cancelReason()
+                        : null
+        );
+    }
+
+    private CollectedGame withoutUnconfirmedFinalScore(
+            CollectedGame game,
+            GameStatus status
+    ) {
+        return new CollectedGame(
+                game.externalGameId(),
+                game.season(),
+                game.gameDate(),
+                game.gameTime(),
+                game.awayTeamCode(),
+                game.homeTeamCode(),
+                game.stadium(),
+                status,
                 null,
                 null,
                 null,

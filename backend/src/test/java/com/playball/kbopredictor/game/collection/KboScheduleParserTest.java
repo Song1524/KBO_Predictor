@@ -185,6 +185,35 @@ class KboScheduleParserTest {
         });
     }
 
+    @Test
+    void pregameZeroZeroSameMarkersWithoutLiveSectionRemainScheduled() {
+        String json = """
+                {"rows":[{"row":[
+                  {"Text":"08.13(목)","Class":"day"},
+                  {"Text":"<b>19:00</b>","Class":"time"},
+                  {"Text":"<span>삼성</span><em><span class=\\\"same\\\">0</span><span>vs</span><span class=\\\"same\\\">0</span></em><span>KIA</span>","Class":"play"},
+                  {"Text":"","Class":"relay"},
+                  {"Text":"","Class":""},
+                  {"Text":"KBS N SPORTS","Class":""},
+                  {"Text":"","Class":""},
+                  {"Text":"광주","Class":""},
+                  {"Text":"-","Class":""}
+                ]}]}
+                """;
+
+        GameCollectionBatch batch = parser.parse(
+                json,
+                LocalDate.of(2026, 8, 13)
+        );
+
+        assertThat(batch.games()).singleElement().satisfies(game -> {
+            assertThat(game.status()).isEqualTo(GameStatus.SCHEDULED);
+            assertThat(game.awayScore()).isNull();
+            assertThat(game.homeScore()).isNull();
+            assertThat(game.result()).isNull();
+        });
+    }
+
     private CollectedGame game(GameCollectionBatch batch, String externalId) {
         return batch.games().stream()
                 .filter(game -> game.externalGameId().equals(externalId))

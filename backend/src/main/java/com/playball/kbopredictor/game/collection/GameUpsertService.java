@@ -41,7 +41,7 @@ public class GameUpsertService {
 
         if (existingGame.isPresent()) {
             Game game = existingGame.get();
-            validateStatusTransition(game.getStatus(), collectedGame.status());
+            validateStatusTransition(game, collectedGame);
             GameStatusSnapshot previous = snapshot(game);
             Integer homeScore = collectedGame.homeScore();
             Integer awayScore = collectedGame.awayScore();
@@ -224,15 +224,26 @@ public class GameUpsertService {
     }
 
     private void validateStatusTransition(
-            GameStatus previousStatus,
-            GameStatus collectedStatus
+            Game existing,
+            CollectedGame collected
     ) {
+        GameStatus previousStatus = existing.getStatus();
+        GameStatus collectedStatus = collected.status();
         boolean regressedFromInProgress = previousStatus
                 == GameStatus.IN_PROGRESS
                 && collectedStatus == GameStatus.SCHEDULED;
         boolean regressedFromTerminal = isTerminal(previousStatus)
                 && !isTerminal(collectedStatus);
-        if (regressedFromInProgress || regressedFromTerminal) {
+        boolean correctsFalseFinished = previousStatus == GameStatus.FINISHED
+                && existing.getHomeScore() == null
+                && existing.getAwayScore() == null
+                && existing.getResult() == null
+                && existing.getWinnerTeam() == null
+                && !collected.finalScoreConfirmed()
+                && (collectedStatus == GameStatus.SCHEDULED
+                    || collectedStatus == GameStatus.IN_PROGRESS);
+        if (regressedFromInProgress
+                || (regressedFromTerminal && !correctsFalseFinished)) {
             throw new IllegalStateException(
                     "KBO 경기 상태가 역방향으로 변경되어 기존 데이터를 유지합니다: "
                             + previousStatus

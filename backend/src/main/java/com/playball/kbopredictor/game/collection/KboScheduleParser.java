@@ -164,9 +164,12 @@ public class KboScheduleParser {
         GameResult result = null;
         String cancelReason = null;
 
-        if (status == GameStatus.CANCELLED) {
+        if (status == GameStatus.SCHEDULED
+                || status == GameStatus.CANCELLED) {
             awayScore = null;
             homeScore = null;
+        }
+        if (status == GameStatus.CANCELLED) {
             cancelReason = note;
         }
 
@@ -258,6 +261,11 @@ public class KboScheduleParser {
             return GameStatus.FINISHED;
         }
         if (scoreInfo.awayScore() != null && scoreInfo.homeScore() != null) {
+            if (scoreInfo.awayScore() == 0
+                    && scoreInfo.homeScore() == 0
+                    && !relay.contains("SECTION=LIVE")) {
+                return GameStatus.SCHEDULED;
+            }
             return GameStatus.IN_PROGRESS;
         }
         return GameStatus.SCHEDULED;
@@ -319,8 +327,7 @@ public class KboScheduleParser {
             String attributes = matcher.group(1).toLowerCase(Locale.ROOT);
             finalMarker = finalMarker
                     || attributes.contains("win")
-                    || attributes.contains("lose")
-                    || attributes.contains("same");
+                    || attributes.contains("lose");
         }
 
         if (scores.size() != 2) {

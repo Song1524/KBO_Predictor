@@ -163,7 +163,56 @@ class KboGameDataCollectorTest {
     }
 
     @Test
-    void gameCenterIsNotRequestedWhenScheduleHasNoFinishedGames() {
+    void officialScheduledStateCorrectsFalseFinishedScheduleMarker() {
+        LocalDate date = LocalDate.of(2026, 8, 13);
+        CollectedGame falseFinished = new CollectedGame(
+                "20260813SSHT0",
+                2026,
+                date,
+                LocalTime.of(19, 0),
+                "SS",
+                "HT",
+                "광주",
+                GameStatus.FINISHED,
+                0,
+                0,
+                null,
+                false,
+                null
+        );
+        when(scheduleClient.fetchSchedule(YearMonth.of(2026, 8)))
+                .thenReturn("schedule-json");
+        when(scheduleParser.parse("schedule-json", date)).thenReturn(
+                new GameCollectionBatch(1, List.of(falseFinished), List.of())
+        );
+        when(officialGameResultSource.fetchGameList(date))
+                .thenReturn("game-center-json");
+        when(officialFinalScoreParser.parse("game-center-json", date))
+                .thenReturn(new OfficialFinalScoreBatch(
+                        Map.of(),
+                        Map.of("20260813SSHT0", new OfficialGameState(
+                                "20260813SSHT0",
+                                "SS",
+                                "HT",
+                                GameStatus.SCHEDULED
+                        )),
+                        List.of()
+                ));
+
+        GameCollectionBatch batch = collector().collect(date);
+
+        assertThat(batch.errors()).isEmpty();
+        assertThat(batch.games()).singleElement().satisfies(game -> {
+            assertThat(game.status()).isEqualTo(GameStatus.SCHEDULED);
+            assertThat(game.awayScore()).isNull();
+            assertThat(game.homeScore()).isNull();
+            assertThat(game.result()).isNull();
+            assertThat(game.finalScoreConfirmed()).isFalse();
+        });
+    }
+
+    @Test
+    void gameCenterIsNotRequestedWhenScheduleIsScheduled() {
         LocalDate date = LocalDate.of(2026, 8, 12);
         when(scheduleClient.fetchSchedule(YearMonth.of(2026, 8)))
                 .thenReturn("schedule-json");
@@ -171,9 +220,9 @@ class KboGameDataCollectorTest {
                 new GameCollectionBatch(
                         1,
                         List.of(game(
-                                GameStatus.IN_PROGRESS,
-                                1,
-                                2,
+                                GameStatus.SCHEDULED,
+                                null,
+                                null,
                                 null,
                                 false
                         )),

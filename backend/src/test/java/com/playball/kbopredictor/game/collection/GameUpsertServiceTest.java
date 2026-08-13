@@ -332,6 +332,85 @@ class GameUpsertServiceTest {
     }
 
     @Test
+    void falseFinishedWithoutResultCanReturnToScheduled() {
+        Game existing = Game.createCollected(
+                "20260812LGOB0",
+                2026,
+                GAME_DATE,
+                GAME_TIME,
+                homeTeam,
+                awayTeam,
+                "잠실",
+                GameStatus.FINISHED,
+                null,
+                null,
+                null,
+                null,
+                null,
+                NOW.minusDays(1)
+        );
+        when(gameRepository.findByExternalGameId("20260812LGOB0"))
+                .thenReturn(Optional.of(existing));
+
+        GameUpsertResult result = service.upsert(collected(
+                GameStatus.SCHEDULED,
+                null,
+                null,
+                null
+        ));
+
+        assertThat(result.statusChanged()).isTrue();
+        assertThat(existing.getStatus()).isEqualTo(GameStatus.SCHEDULED);
+        assertThat(existing.getHomeScore()).isNull();
+        assertThat(existing.getAwayScore()).isNull();
+        assertThat(existing.getResult()).isNull();
+    }
+
+    @Test
+    void falseFinishedWithoutResultCanAdvanceToInProgress() {
+        Game existing = Game.createCollected(
+                "20260812LGOB0",
+                2026,
+                GAME_DATE,
+                GAME_TIME,
+                homeTeam,
+                awayTeam,
+                "잠실",
+                GameStatus.FINISHED,
+                null,
+                null,
+                null,
+                null,
+                null,
+                NOW.minusDays(1)
+        );
+        when(gameRepository.findByExternalGameId("20260812LGOB0"))
+                .thenReturn(Optional.of(existing));
+
+        GameUpsertResult result = service.upsert(new CollectedGame(
+                "20260812LGOB0",
+                2026,
+                GAME_DATE,
+                GAME_TIME,
+                "LG",
+                "OB",
+                "잠실",
+                GameStatus.IN_PROGRESS,
+                0,
+                1,
+                null,
+                false,
+                null
+        ));
+
+        assertThat(result.statusChanged()).isTrue();
+        assertThat(existing.getStatus()).isEqualTo(GameStatus.IN_PROGRESS);
+        assertThat(existing.getAwayScore()).isZero();
+        assertThat(existing.getHomeScore()).isEqualTo(1);
+        assertThat(existing.getResult()).isNull();
+    }
+
+    @Test
     void scheduledGameChangesToInProgress() {
         Game existing = Game.createCollected(
                 "20260812LGOB0",

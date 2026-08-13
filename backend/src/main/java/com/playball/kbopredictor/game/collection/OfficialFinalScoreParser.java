@@ -1,6 +1,7 @@
 package com.playball.kbopredictor.game.collection;
 
 import com.playball.kbopredictor.game.entity.GameResult;
+import com.playball.kbopredictor.game.entity.GameStatus;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -28,6 +29,7 @@ public class OfficialFinalScoreParser {
     public OfficialFinalScoreBatch parse(String json, LocalDate targetDate) {
         JsonNode games = readGames(json);
         Map<String, OfficialFinalScore> scores = new LinkedHashMap<>();
+        Map<String, OfficialGameState> states = new LinkedHashMap<>();
         List<String> errors = new ArrayList<>();
 
         for (JsonNode game : games) {
@@ -39,6 +41,19 @@ public class OfficialFinalScoreParser {
                     .toUpperCase(Locale.ROOT);
             if (externalGameId.isBlank()) {
                 errors.add("KBO GameCenter final score row has no G_ID");
+                continue;
+            }
+
+            try {
+                OfficialGameState state = parseOfficialState(
+                        game,
+                        externalGameId
+                );
+                if (state != null) {
+                    states.put(externalGameId, state);
+                }
+            } catch (RuntimeException exception) {
+                errors.add(externalGameId + ": " + exception.getMessage());
                 continue;
             }
 
@@ -59,8 +74,37 @@ public class OfficialFinalScoreParser {
 
         return new OfficialFinalScoreBatch(
                 Map.copyOf(scores),
+                Map.copyOf(states),
                 List.copyOf(errors)
         );
+    }
+
+    private OfficialGameState parseOfficialState(
+            JsonNode game,
+            String externalGameId
+    ) {
+        GameStatus status = mapStatus(game);
+        if (status == null) {
+            return null;
+        }
+        return new OfficialGameState(
+                externalGameId,
+                requiredText(game, "AWAY_ID"),
+                requiredText(game, "HOME_ID"),
+                status
+        );
+    }
+
+    private GameStatus mapStatus(JsonNode game) {
+        if (!isNormalGame(game)) {
+            return GameStatus.CANCELLED;
+        }
+        return switch (text(game, "GAME_STATE_SC")) {
+            case "1" -> GameStatus.SCHEDULED;
+            case "2" -> GameStatus.IN_PROGRESS;
+            case "3" -> GameStatus.FINISHED;
+            default -> null;
+        };
     }
 
     private JsonNode readGames(String json) {

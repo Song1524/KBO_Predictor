@@ -1,6 +1,7 @@
 package com.playball.kbopredictor.game.collection;
 
 import com.playball.kbopredictor.game.entity.GameResult;
+import com.playball.kbopredictor.game.entity.GameStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -76,6 +77,26 @@ class OfficialFinalScoreParserTest {
 
         assertThat(batch.scoresByExternalGameId()).isEmpty();
         assertThat(batch.errors()).isEmpty();
+    }
+
+    @Test
+    void pregameScoreCheckDoesNotOverrideOfficialScheduledState() {
+        LocalDate date = LocalDate.of(2026, 8, 13);
+        OfficialFinalScoreBatch batch = parser.parse("""
+                {"code":"100","game":[
+                  {"G_DT":"20260813","G_ID":"20260813HHOB0","AWAY_ID":"HH","HOME_ID":"OB","GAME_STATE_SC":"1","GAME_RESULT_CK":0,"SCORE_CK":"1","CANCEL_SC_ID":"0","GAME_INN_NO":1,"GAME_TB_SC":"T","T_SCORE_CN":"0","B_SCORE_CN":"0"},
+                  {"G_DT":"20260813","G_ID":"20260813LTSK0","AWAY_ID":"LT","HOME_ID":"SK","GAME_STATE_SC":"1","GAME_RESULT_CK":0,"SCORE_CK":"0","CANCEL_SC_ID":"0","GAME_INN_NO":null,"GAME_TB_SC":null,"T_SCORE_CN":"0","B_SCORE_CN":"0"},
+                  {"G_DT":"20260813","G_ID":"20260813SSHT0","AWAY_ID":"SS","HOME_ID":"HT","GAME_STATE_SC":"1","GAME_RESULT_CK":0,"SCORE_CK":"1","CANCEL_SC_ID":"0","GAME_INN_NO":1,"GAME_TB_SC":"T","T_SCORE_CN":"0","B_SCORE_CN":"0"},
+                  {"G_DT":"20260813","G_ID":"20260813KTNC0","AWAY_ID":"KT","HOME_ID":"NC","GAME_STATE_SC":"1","GAME_RESULT_CK":0,"SCORE_CK":"1","CANCEL_SC_ID":"0","GAME_INN_NO":1,"GAME_TB_SC":"T","T_SCORE_CN":"0","B_SCORE_CN":"0"},
+                  {"G_DT":"20260813","G_ID":"20260813LGWO0","AWAY_ID":"LG","HOME_ID":"WO","GAME_STATE_SC":"1","GAME_RESULT_CK":0,"SCORE_CK":"1","CANCEL_SC_ID":"0","GAME_INN_NO":1,"GAME_TB_SC":"T","T_SCORE_CN":"0","B_SCORE_CN":"0"}
+                ]}
+                """, date);
+
+        assertThat(batch.errors()).isEmpty();
+        assertThat(batch.scoresByExternalGameId()).isEmpty();
+        assertThat(batch.statesByExternalGameId()).hasSize(5);
+        assertThat(batch.statesByExternalGameId().values())
+                .allMatch(state -> state.status() == GameStatus.SCHEDULED);
     }
 
     @Test

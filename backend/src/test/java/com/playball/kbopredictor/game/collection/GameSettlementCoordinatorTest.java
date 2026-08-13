@@ -141,6 +141,24 @@ class GameSettlementCoordinatorTest {
     }
 
     @Test
+    void falseFinishedCorrectionToScheduledDoesNotTouchSettlement() {
+        GameUpsertResult result = new GameUpsertResult(
+                GameUpsertAction.UPDATED,
+                1L,
+                GameStatus.FINISHED,
+                GameStatus.SCHEDULED,
+                null,
+                null,
+                true,
+                false
+        );
+
+        assertThat(coordinator.settleIfNecessary(result))
+                .isEqualTo(GameSettlementTriggerResult.NOT_REQUIRED);
+        verify(predictionSettlementService, never()).settleGame(1L);
+    }
+
+    @Test
     void laterConfirmedScoreSettlesPendingPredictionOnlyOnce() {
         GameUpsertResult unconfirmed = new GameUpsertResult(
                 GameUpsertAction.UPDATED,
