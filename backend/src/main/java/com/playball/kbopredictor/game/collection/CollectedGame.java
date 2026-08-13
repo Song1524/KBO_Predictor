@@ -18,6 +18,7 @@ public record CollectedGame(
         Integer awayScore,
         Integer homeScore,
         GameResult result,
+        boolean finalScoreConfirmed,
         String cancelReason
 ) {
 }

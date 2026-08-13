@@ -1,6 +1,7 @@
 package com.playball.kbopredictor.game.collection;
 
 import com.playball.kbopredictor.game.entity.Game;
+import com.playball.kbopredictor.game.entity.GameResult;
 import com.playball.kbopredictor.game.entity.GameStatus;
 import com.playball.kbopredictor.game.repository.GameRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,6 +56,7 @@ class KboGameSyncSchedulerTest {
                 "missingScheduleRetryMinutes",
                 60
         );
+        ReflectionTestUtils.setField(scheduler, "finalResultRetryHours", 6);
     }
 
     @Test
@@ -109,13 +111,48 @@ class KboGameSyncSchedulerTest {
     @Test
     void terminalGamesAreVerifiedOnceAfterStartupThenStopRefreshing() {
         when(gameRepository.findByGameDateOrderByGameTimeAsc(TODAY))
-                .thenReturn(List.of(game(GameStatus.FINISHED, LocalTime.of(18, 30))));
+                .thenReturn(List.of(game(
+                        GameStatus.FINISHED,
+                        LocalTime.of(18, 30),
+                        true
+                )));
         when(gameSyncService.sync(TODAY)).thenReturn(response());
 
         scheduler.refreshTodayGameStatuses();
         scheduler.refreshTodayGameStatuses();
 
         verify(gameSyncService).sync(TODAY);
+    }
+
+    @Test
+    void finishedGameWithoutFinalResultRetriesWithinBoundedWindow() {
+        when(gameRepository.findByGameDateOrderByGameTimeAsc(TODAY))
+                .thenReturn(List.of(game(
+                        GameStatus.FINISHED,
+                        LocalTime.of(18, 30),
+                        false
+                )));
+        when(gameSyncService.sync(TODAY)).thenReturn(response());
+
+        scheduler.refreshTodayGameStatuses();
+        scheduler.refreshTodayGameStatuses();
+
+        verify(gameSyncService, times(2)).sync(TODAY);
+    }
+
+    @Test
+    void incompleteFinalResultStopsRetryingAfterConfiguredWindow() {
+        ReflectionTestUtils.setField(scheduler, "finalResultRetryHours", 6);
+        when(gameRepository.findByGameDateOrderByGameTimeAsc(TODAY))
+                .thenReturn(List.of(game(
+                        GameStatus.FINISHED,
+                        LocalTime.of(1, 0),
+                        false
+                )));
+
+        scheduler.refreshTodayGameStatuses();
+
+        verify(gameSyncService, times(0)).sync(TODAY);
     }
 
     @Test
@@ -156,6 +193,14 @@ class KboGameSyncSchedulerTest {
     }
 
     private Game game(GameStatus status, LocalTime gameTime) {
+        return game(status, gameTime, status == GameStatus.FINISHED);
+    }
+
+    private Game game(
+            GameStatus status,
+            LocalTime gameTime,
+            boolean completeFinalResult
+    ) {
         return Game.createCollected(
                 "20260810LGOB0",
                 2026,
@@ -165,10 +210,10 @@ class KboGameSyncSchedulerTest {
                 null,
                 "잠실",
                 status,
+                completeFinalResult ? 3 : null,
+                completeFinalResult ? 2 : null,
                 null,
-                null,
-                null,
-                null,
+                completeFinalResult ? GameResult.HOME_WIN : null,
                 null,
                 NOW
         );

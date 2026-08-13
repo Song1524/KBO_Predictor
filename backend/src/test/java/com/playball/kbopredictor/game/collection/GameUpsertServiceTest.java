@@ -176,6 +176,7 @@ class GameUpsertServiceTest {
                 null,
                 null,
                 null,
+                false,
                 null
         ));
 
@@ -237,6 +238,7 @@ class GameUpsertServiceTest {
                 null,
                 null,
                 null,
+                false,
                 null
         ));
 
@@ -283,6 +285,7 @@ class GameUpsertServiceTest {
                 null,
                 null,
                 null,
+                false,
                 null
         ));
 
@@ -402,6 +405,7 @@ class GameUpsertServiceTest {
                 awayScore,
                 homeScore,
                 result,
+                true,
                 null
         ));
 
@@ -418,6 +422,115 @@ class GameUpsertServiceTest {
             assertThat(existing.getWinnerTeam().getKboTeamCode())
                     .isEqualTo(expectedWinnerCode);
         }
+    }
+
+    @Test
+    void unconfirmedFinishedResultIsPendingUntilConfirmedScoreArrives() {
+        Game existing = Game.createCollected(
+                "20260812LGOB0",
+                2026,
+                GAME_DATE,
+                GAME_TIME,
+                homeTeam,
+                awayTeam,
+                "잠실",
+                GameStatus.IN_PROGRESS,
+                0,
+                0,
+                null,
+                null,
+                null,
+                NOW.minusDays(1)
+        );
+        when(gameRepository.findByExternalGameId("20260812LGOB0"))
+                .thenReturn(Optional.of(existing));
+
+        GameUpsertResult pending = service.upsert(new CollectedGame(
+                "20260812LGOB0",
+                2026,
+                GAME_DATE,
+                GAME_TIME,
+                "LG",
+                "OB",
+                "잠실",
+                GameStatus.FINISHED,
+                null,
+                null,
+                null,
+                false,
+                null
+        ));
+
+        assertThat(pending.reachedFinished()).isTrue();
+        assertThat(pending.finalScoreConfirmed()).isFalse();
+        assertThat(existing.getHomeScore()).isNull();
+        assertThat(existing.getAwayScore()).isNull();
+        assertThat(existing.getResult()).isNull();
+
+        GameUpsertResult confirmed = service.upsert(new CollectedGame(
+                "20260812LGOB0",
+                2026,
+                GAME_DATE,
+                GAME_TIME,
+                "LG",
+                "OB",
+                "잠실",
+                GameStatus.FINISHED,
+                2,
+                7,
+                GameResult.HOME_WIN,
+                true,
+                null
+        ));
+
+        assertThat(confirmed.finalScoreConfirmed()).isTrue();
+        assertThat(existing.getAwayScore()).isEqualTo(2);
+        assertThat(existing.getHomeScore()).isEqualTo(7);
+        assertThat(existing.getResult()).isEqualTo(GameResult.HOME_WIN);
+        assertThat(existing.getWinnerTeam()).isSameAs(homeTeam);
+    }
+
+    @Test
+    void temporaryUnconfirmedResponseDoesNotEraseKnownFinalResult() {
+        Game existing = Game.createCollected(
+                "20260812LGOB0",
+                2026,
+                GAME_DATE,
+                GAME_TIME,
+                homeTeam,
+                awayTeam,
+                "잠실",
+                GameStatus.FINISHED,
+                5,
+                2,
+                homeTeam,
+                GameResult.HOME_WIN,
+                null,
+                NOW.minusDays(1)
+        );
+        when(gameRepository.findByExternalGameId("20260812LGOB0"))
+                .thenReturn(Optional.of(existing));
+
+        GameUpsertResult result = service.upsert(new CollectedGame(
+                "20260812LGOB0",
+                2026,
+                GAME_DATE,
+                GAME_TIME,
+                "LG",
+                "OB",
+                "잠실",
+                GameStatus.FINISHED,
+                null,
+                null,
+                null,
+                false,
+                null
+        ));
+
+        assertThat(result.terminalDataChanged()).isFalse();
+        assertThat(existing.getHomeScore()).isEqualTo(5);
+        assertThat(existing.getAwayScore()).isEqualTo(2);
+        assertThat(existing.getResult()).isEqualTo(GameResult.HOME_WIN);
     }
 
     @Test
@@ -453,6 +566,7 @@ class GameUpsertServiceTest {
                 null,
                 null,
                 null,
+                false,
                 "우천취소"
         ));
 
@@ -497,6 +611,7 @@ class GameUpsertServiceTest {
                 7,
                 3,
                 GameResult.AWAY_WIN,
+                true,
                 null
         ));
 
@@ -532,6 +647,7 @@ class GameUpsertServiceTest {
                 awayScore,
                 homeScore,
                 result,
+                status == GameStatus.FINISHED,
                 null
         );
     }

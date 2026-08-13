@@ -10,7 +10,8 @@ public record GameUpsertResult(
         GameStatus currentStatus,
         GameResult previousResult,
         GameResult currentResult,
-        boolean terminalDataChanged
+        boolean terminalDataChanged,
+        boolean finalScoreConfirmed
 ) {
 
     public boolean inserted() {

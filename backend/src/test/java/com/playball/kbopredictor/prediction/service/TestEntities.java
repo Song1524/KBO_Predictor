@@ -49,6 +49,10 @@ public final class TestEntities {
 
     public static void setResult(Game game, GameResult result) {
         ReflectionTestUtils.setField(game, "result", result);
+        int homeScore = result == GameResult.HOME_WIN ? 5 : 2;
+        int awayScore = result == GameResult.AWAY_WIN ? 5 : 2;
+        ReflectionTestUtils.setField(game, "homeScore", homeScore);
+        ReflectionTestUtils.setField(game, "awayScore", awayScore);
         Team winner = switch (result) {
             case HOME_WIN -> game.getHomeTeam();
             case DRAW -> null;

@@ -1,5 +1,6 @@
 package com.playball.kbopredictor.stats.collection;
 
+import com.playball.kbopredictor.game.collection.OfficialGameResultSource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -19,7 +20,7 @@ import java.util.stream.Collectors;
 
 @Component
 public class KboOfficialStartingPitcherHttpClient
-        implements OfficialStartingPitcherSource {
+        implements OfficialStartingPitcherSource, OfficialGameResultSource {
 
     private static final DateTimeFormatter KBO_DATE = DateTimeFormatter.BASIC_ISO_DATE;
 

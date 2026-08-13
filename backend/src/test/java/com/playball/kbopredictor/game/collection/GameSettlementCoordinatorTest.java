@@ -123,6 +123,57 @@ class GameSettlementCoordinatorTest {
     }
 
     @Test
+    void finishedWithoutConfirmedScoreKeepsSettlementPending() {
+        GameUpsertResult result = new GameUpsertResult(
+                GameUpsertAction.UPDATED,
+                1L,
+                GameStatus.IN_PROGRESS,
+                GameStatus.FINISHED,
+                null,
+                null,
+                false,
+                false
+        );
+
+        assertThat(coordinator.settleIfNecessary(result))
+                .isEqualTo(GameSettlementTriggerResult.RESULT_PENDING);
+        verify(predictionSettlementService, never()).settleGame(1L);
+    }
+
+    @Test
+    void laterConfirmedScoreSettlesPendingPredictionOnlyOnce() {
+        GameUpsertResult unconfirmed = new GameUpsertResult(
+                GameUpsertAction.UPDATED,
+                1L,
+                GameStatus.IN_PROGRESS,
+                GameStatus.FINISHED,
+                null,
+                null,
+                false,
+                false
+        );
+        GameUpsertResult confirmed = result(
+                GameStatus.FINISHED,
+                GameStatus.FINISHED,
+                null,
+                GameResult.AWAY_WIN,
+                false
+        );
+        when(userPredictionRepository.existsByGameIdAndSettledFalse(1L))
+                .thenReturn(true, false);
+        when(predictionSettlementService.settleGame(1L))
+                .thenReturn(settlement(false));
+
+        assertThat(coordinator.settleIfNecessary(unconfirmed))
+                .isEqualTo(GameSettlementTriggerResult.RESULT_PENDING);
+        assertThat(coordinator.settleIfNecessary(confirmed))
+                .isEqualTo(GameSettlementTriggerResult.SETTLED);
+        assertThat(coordinator.settleIfNecessary(confirmed))
+                .isEqualTo(GameSettlementTriggerResult.NOT_REQUIRED);
+        verify(predictionSettlementService).settleGame(1L);
+    }
+
+    @Test
     void correctedResultAfterSettlementRequiresReviewAndDoesNotResettle() {
         GameUpsertResult result = result(
                 GameStatus.FINISHED,
@@ -155,7 +206,8 @@ class GameSettlementCoordinatorTest {
                 currentStatus,
                 previousResult,
                 currentResult,
-                terminalDataChanged
+                terminalDataChanged,
+                currentStatus == GameStatus.FINISHED
         );
     }
 

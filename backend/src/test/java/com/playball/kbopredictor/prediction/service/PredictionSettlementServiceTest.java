@@ -19,6 +19,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -28,6 +30,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -205,6 +208,60 @@ class PredictionSettlementServiceTest {
         assertThat(response.totalPaidPoints()).isZero();
         assertThat(user.getPoint()).isEqualTo(900);
         verifyNoInteractions(pointService);
+    }
+
+    @Test
+    void finishedGameWithoutScoreCannotBeSettled() {
+        Game game = finishedGame(410L, GameResult.HOME_WIN);
+        ReflectionTestUtils.setField(game, "homeScore", null);
+        ReflectionTestUtils.setField(game, "awayScore", null);
+        when(gameRepository.findByIdForUpdate(game.getId()))
+                .thenReturn(Optional.of(game));
+
+        assertThatThrownBy(() -> service.settleGame(game.getId()))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Final score is not available");
+        verifyNoInteractions(gameOddsService, pointService);
+    }
+
+    @Test
+    void inconsistentFinalScoreAndResultCannotBeSettled() {
+        Game game = finishedGame(420L, GameResult.HOME_WIN);
+        ReflectionTestUtils.setField(game, "homeScore", 2);
+        ReflectionTestUtils.setField(game, "awayScore", 7);
+        when(gameRepository.findByIdForUpdate(game.getId()))
+                .thenReturn(Optional.of(game));
+
+        assertThatThrownBy(() -> service.settleGame(game.getId()))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Final score and game result do not match");
+        verifyNoInteractions(gameOddsService, pointService);
+    }
+
+    @Test
+    void confirmedZeroZeroIsAValidDrawAndSettlesNormally() {
+        Game game = finishedGame(430L, GameResult.DRAW);
+        ReflectionTestUtils.setField(game, "homeScore", 0);
+        ReflectionTestUtils.setField(game, "awayScore", 0);
+        User user = TestEntities.user(1L, 900);
+        UserPrediction prediction = UserPrediction.create(
+                user,
+                game,
+                PredictionOutcome.DRAW,
+                100
+        );
+        when(gameRepository.findByIdForUpdate(game.getId()))
+                .thenReturn(Optional.of(game));
+        when(gameOddsService.finalizeForSettlement(game))
+                .thenReturn(finalizedOdds(game));
+        when(userPredictionRepository.findByGameIdAndSettledFalse(game.getId()))
+                .thenReturn(List.of(prediction));
+
+        PredictionSettlementResponse response = service.settleGame(game.getId());
+
+        assertThat(response.correctCount()).isEqualTo(1);
+        assertThat(prediction.getSettlementStatus())
+                .isEqualTo(PredictionSettlementStatus.WON);
     }
 
     @Test

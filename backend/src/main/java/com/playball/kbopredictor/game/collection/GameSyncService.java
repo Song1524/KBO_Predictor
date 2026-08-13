@@ -173,7 +173,7 @@ public class GameSyncService {
                 );
             }
 
-            if (result.reachedFinished()) {
+            if (result.reachedFinished() && result.finalScoreConfirmed()) {
                 try {
                     shadowEvaluationService.evaluateAndLog(result.gameId());
                 } catch (RuntimeException exception) {

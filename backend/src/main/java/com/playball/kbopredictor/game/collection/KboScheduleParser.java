@@ -168,13 +168,12 @@ public class KboScheduleParser {
             awayScore = null;
             homeScore = null;
             cancelReason = note;
-        } else if (status == GameStatus.FINISHED) {
-            if (awayScore == null || homeScore == null) {
-                throw new IllegalArgumentException(
-                        "종료 경기의 점수를 찾을 수 없습니다."
-                );
-            }
-            result = determineResult(homeScore, awayScore);
+        }
+
+        // Schedule.aspx is sufficient for display/live scores, but its REVIEW
+        // transition is not proof that the final result fields are ready.
+        if (status == GameStatus.FINISHED) {
+            result = null;
         }
 
         return new ParsedRow(
@@ -235,6 +234,7 @@ public class KboScheduleParser {
                     row.awayScore(),
                     row.homeScore(),
                     row.result(),
+                    false,
                     row.cancelReason()
             ));
         }
@@ -268,16 +268,6 @@ public class KboScheduleParser {
                 || note.contains("노게임")
                 || note.equals("그라운드사정")
                 || note.equals("기타");
-    }
-
-    private GameResult determineResult(int homeScore, int awayScore) {
-        if (homeScore > awayScore) {
-            return GameResult.HOME_WIN;
-        }
-        if (homeScore < awayScore) {
-            return GameResult.AWAY_WIN;
-        }
-        return GameResult.DRAW;
     }
 
     private LocalDate parseDate(String dayText, int year) {

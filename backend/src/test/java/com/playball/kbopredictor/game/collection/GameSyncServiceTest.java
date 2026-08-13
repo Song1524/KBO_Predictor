@@ -111,6 +111,7 @@ class GameSyncServiceTest {
                     GameStatus.SCHEDULED,
                     null,
                     null,
+                    false,
                     false
             ));
         }
@@ -239,6 +240,7 @@ class GameSyncServiceTest {
                 null,
                 null,
                 null,
+                false,
                 null
         );
     }
@@ -263,6 +265,7 @@ class GameSyncServiceTest {
                 status == GameStatus.FINISHED
                         ? com.playball.kbopredictor.game.entity.GameResult.HOME_WIN
                         : null,
+                status == GameStatus.FINISHED,
                 status == GameStatus.CANCELLED ? "우천취소" : null
         );
     }
@@ -279,7 +282,8 @@ class GameSyncServiceTest {
                 currentStatus,
                 null,
                 null,
-                false
+                false,
+                currentStatus == GameStatus.FINISHED
         );
     }
 }

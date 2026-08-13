@@ -1,6 +1,5 @@
 package com.playball.kbopredictor.game.collection;
 
-import com.playball.kbopredictor.game.entity.GameResult;
 import com.playball.kbopredictor.game.entity.GameStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,13 +50,14 @@ class KboScheduleParserTest {
         assertThat(homeWin.status()).isEqualTo(GameStatus.FINISHED);
         assertThat(homeWin.awayScore()).isEqualTo(2);
         assertThat(homeWin.homeScore()).isEqualTo(5);
-        assertThat(homeWin.result()).isEqualTo(GameResult.HOME_WIN);
+        assertThat(homeWin.result()).isNull();
+        assertThat(homeWin.finalScoreConfirmed()).isFalse();
 
         CollectedGame awayWin = game(batch, "20260812HTNC0");
-        assertThat(awayWin.result()).isEqualTo(GameResult.AWAY_WIN);
+        assertThat(awayWin.result()).isNull();
 
         CollectedGame draw = game(batch, "20260812SKWO0");
-        assertThat(draw.result()).isEqualTo(GameResult.DRAW);
+        assertThat(draw.result()).isNull();
 
         CollectedGame inProgress = game(batch, "20260812LGOB1");
         assertThat(inProgress.status()).isEqualTo(GameStatus.IN_PROGRESS);
@@ -153,6 +153,36 @@ class KboScheduleParserTest {
         ))
                 .isInstanceOf(GameDataCollectionException.class)
                 .hasMessageContaining("rows 배열");
+    }
+
+    @Test
+    void finishedRowWithoutScoresRemainsUnknownInsteadOfBecomingZeroZero() {
+        String json = """
+                {"rows":[{"row":[
+                  {"Text":"08.12","Class":"day"},
+                  {"Text":"<b>19:00</b>","Class":"time"},
+                  {"Text":"<span>LG</span><em><span>vs</span></em><span>KT</span>","Class":"play"},
+                  {"Text":"<a href='/Schedule/GameCenter/Main.aspx?gameDate=20260812&gameId=20260812LGKT0&section=REVIEW'>review</a>","Class":"relay"},
+                  {"Text":"","Class":""},
+                  {"Text":"","Class":""},
+                  {"Text":"","Class":""},
+                  {"Text":"수원","Class":""},
+                  {"Text":"","Class":""}
+                ]}]}
+                """;
+
+        GameCollectionBatch batch = parser.parse(
+                json,
+                LocalDate.of(2026, 8, 12)
+        );
+
+        assertThat(batch.games()).singleElement().satisfies(game -> {
+            assertThat(game.status()).isEqualTo(GameStatus.FINISHED);
+            assertThat(game.awayScore()).isNull();
+            assertThat(game.homeScore()).isNull();
+            assertThat(game.result()).isNull();
+            assertThat(game.finalScoreConfirmed()).isFalse();
+        });
     }
 
     private CollectedGame game(GameCollectionBatch batch, String externalId) {

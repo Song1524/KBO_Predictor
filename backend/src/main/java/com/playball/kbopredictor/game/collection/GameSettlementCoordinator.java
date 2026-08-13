@@ -1,5 +1,6 @@
 package com.playball.kbopredictor.game.collection;
 
+import com.playball.kbopredictor.game.entity.GameStatus;
 import com.playball.kbopredictor.prediction.dto.PredictionSettlementResponse;
 import com.playball.kbopredictor.prediction.repository.UserPredictionRepository;
 import com.playball.kbopredictor.prediction.service.PredictionSettlementService;
@@ -36,6 +37,15 @@ public class GameSettlementCoordinator {
 
         if (!upsertResult.currentlyTerminal()) {
             return GameSettlementTriggerResult.NOT_REQUIRED;
+        }
+
+        if (upsertResult.currentStatus() == GameStatus.FINISHED
+                && !upsertResult.finalScoreConfirmed()) {
+            log.warn(
+                    "KBO final score is not confirmed; settlement is pending: gameId={}",
+                    gameId
+            );
+            return GameSettlementTriggerResult.RESULT_PENDING;
         }
 
         boolean hasPendingPredictions = gameId != null

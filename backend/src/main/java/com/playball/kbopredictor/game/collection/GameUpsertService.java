@@ -28,6 +28,7 @@ public class GameUpsertService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public GameUpsertResult upsert(CollectedGame collectedGame) {
+        validateConfirmedFinalScore(collectedGame);
         Team homeTeam = getTeam(collectedGame.homeTeamCode());
         Team awayTeam = getTeam(collectedGame.awayTeamCode());
         LocalDateTime now = LocalDateTime.now(clock);
@@ -38,18 +39,29 @@ public class GameUpsertService {
                 awayTeam
         );
 
-        Team winnerTeam = determineWinner(
-                collectedGame.result(),
-                homeTeam,
-                awayTeam
-        );
-
         if (existingGame.isPresent()) {
             Game game = existingGame.get();
             validateStatusTransition(game.getStatus(), collectedGame.status());
             GameStatusSnapshot previous = snapshot(game);
+            Integer homeScore = collectedGame.homeScore();
+            Integer awayScore = collectedGame.awayScore();
+            GameResult result = collectedGame.result();
+            if (shouldPreserveExistingFinalResult(game, collectedGame)) {
+                homeScore = game.getHomeScore();
+                awayScore = game.getAwayScore();
+                result = game.getResult();
+            }
+            Team winnerTeam = determineWinner(result, homeTeam, awayTeam);
             boolean terminalDataChanged = isTerminal(previous.status())
-                    && terminalDataChanged(previous, collectedGame, homeTeam, awayTeam);
+                    && terminalDataChanged(
+                            previous,
+                            collectedGame,
+                            homeTeam,
+                            awayTeam,
+                            homeScore,
+                            awayScore,
+                            result
+                    );
             LocalTime gameTime = collectedGame.gameTime() == null
                     ? game.getGameTime()
                     : collectedGame.gameTime();
@@ -67,10 +79,10 @@ public class GameUpsertService {
                     awayTeam,
                     stadium,
                     collectedGame.status(),
-                    collectedGame.homeScore(),
-                    collectedGame.awayScore(),
+                    homeScore,
+                    awayScore,
                     winnerTeam,
-                    collectedGame.result(),
+                    result,
                     collectedGame.cancelReason(),
                     now
             );
@@ -82,10 +94,16 @@ public class GameUpsertService {
                     game.getStatus(),
                     previous.result(),
                     game.getResult(),
-                    terminalDataChanged
+                    terminalDataChanged,
+                    collectedGame.finalScoreConfirmed()
             );
         }
 
+        Team winnerTeam = determineWinner(
+                collectedGame.result(),
+                homeTeam,
+                awayTeam
+        );
         Game newGame = Game.createCollected(
                 collectedGame.externalGameId(),
                 collectedGame.season(),
@@ -110,8 +128,49 @@ public class GameUpsertService {
                 newGame.getStatus(),
                 null,
                 newGame.getResult(),
-                false
+                false,
+                collectedGame.finalScoreConfirmed()
         );
+    }
+
+    private void validateConfirmedFinalScore(CollectedGame collectedGame) {
+        if (!collectedGame.finalScoreConfirmed()) {
+            return;
+        }
+        if (collectedGame.status() != GameStatus.FINISHED
+                || collectedGame.homeScore() == null
+                || collectedGame.awayScore() == null
+                || collectedGame.result() == null
+                || resultOf(
+                        collectedGame.homeScore(),
+                        collectedGame.awayScore()
+                ) != collectedGame.result()) {
+            throw new IllegalArgumentException(
+                    "Confirmed final score is incomplete or inconsistent"
+            );
+        }
+    }
+
+    private boolean shouldPreserveExistingFinalResult(
+            Game existing,
+            CollectedGame collectedGame
+    ) {
+        return collectedGame.status() == GameStatus.FINISHED
+                && !collectedGame.finalScoreConfirmed()
+                && existing.getStatus() == GameStatus.FINISHED
+                && existing.getHomeScore() != null
+                && existing.getAwayScore() != null
+                && existing.getResult() != null;
+    }
+
+    private GameResult resultOf(int homeScore, int awayScore) {
+        if (homeScore > awayScore) {
+            return GameResult.HOME_WIN;
+        }
+        if (homeScore < awayScore) {
+            return GameResult.AWAY_WIN;
+        }
+        return GameResult.DRAW;
     }
 
     private Optional<Game> findExistingGame(
@@ -220,12 +279,15 @@ public class GameUpsertService {
             GameStatusSnapshot previous,
             CollectedGame collected,
             Team homeTeam,
-            Team awayTeam
+            Team awayTeam,
+            Integer homeScore,
+            Integer awayScore,
+            GameResult result
     ) {
         return previous.status() != collected.status()
-                || previous.result() != collected.result()
-                || !Objects.equals(previous.homeScore(), collected.homeScore())
-                || !Objects.equals(previous.awayScore(), collected.awayScore())
+                || previous.result() != result
+                || !Objects.equals(previous.homeScore(), homeScore)
+                || !Objects.equals(previous.awayScore(), awayScore)
                 || !Objects.equals(previous.homeTeamId(), homeTeam.getId())
                 || !Objects.equals(previous.awayTeamId(), awayTeam.getId())
                 || !Objects.equals(

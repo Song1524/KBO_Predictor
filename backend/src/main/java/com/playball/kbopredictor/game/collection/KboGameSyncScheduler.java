@@ -1,6 +1,7 @@
 package com.playball.kbopredictor.game.collection;
 
 import com.playball.kbopredictor.game.entity.Game;
+import com.playball.kbopredictor.game.entity.GameResult;
 import com.playball.kbopredictor.game.entity.GameStatus;
 import com.playball.kbopredictor.game.repository.GameRepository;
 import lombok.RequiredArgsConstructor;
@@ -52,6 +53,9 @@ public class KboGameSyncScheduler {
 
     @Value("${app.kbo-data.sync-scheduler.missing-schedule-retry-minutes:60}")
     private int missingScheduleRetryMinutes;
+
+    @Value("${app.kbo-data.sync-scheduler.final-result-retry-hours:6}")
+    private int finalResultRetryHours;
 
     @Scheduled(
             cron = "${app.kbo-data.sync-scheduler.schedule-cron:0 0 6 * * *}",
@@ -187,6 +191,21 @@ public class KboGameSyncScheduler {
             return new RefreshDecision(true, null);
         }
 
+        List<Game> incompleteFinishedGames = todayGames.stream()
+                .filter(this::hasIncompleteFinalResult)
+                .toList();
+        if (!incompleteFinishedGames.isEmpty()) {
+            boolean withinRetryWindow = incompleteFinishedGames.stream()
+                    .anyMatch(this::isWithinFinalResultRetryWindow);
+            if (withinRetryWindow) {
+                return new RefreshDecision(true, null);
+            }
+            return new RefreshDecision(
+                    false,
+                    "KBO final score confirmation retry window has ended"
+            );
+        }
+
         if (!today.equals(verifiedScheduleDate.get())) {
             return new RefreshDecision(true, null);
         }
@@ -225,6 +244,43 @@ public class KboGameSyncScheduler {
             );
         }
         return new RefreshDecision(true, null);
+    }
+
+    private boolean hasIncompleteFinalResult(Game game) {
+        if (game.getStatus() != GameStatus.FINISHED) {
+            return false;
+        }
+        Integer homeScore = game.getHomeScore();
+        Integer awayScore = game.getAwayScore();
+        if (homeScore == null || awayScore == null
+                || homeScore < 0 || awayScore < 0
+                || game.getResult() == null) {
+            return true;
+        }
+        return resultOf(homeScore, awayScore) != game.getResult();
+    }
+
+    private boolean isWithinFinalResultRetryWindow(Game game) {
+        if (game.getGameTime() == null) {
+            return LocalDateTime.now(clock).isBefore(
+                    game.getGameDate().plusDays(1).atStartOfDay()
+            );
+        }
+        LocalDateTime retryUntil = LocalDateTime.of(
+                game.getGameDate(),
+                game.getGameTime()
+        ).plusHours(Math.max(1, finalResultRetryHours));
+        return !LocalDateTime.now(clock).isAfter(retryUntil);
+    }
+
+    private GameResult resultOf(int homeScore, int awayScore) {
+        if (homeScore > awayScore) {
+            return GameResult.HOME_WIN;
+        }
+        if (homeScore < awayScore) {
+            return GameResult.AWAY_WIN;
+        }
+        return GameResult.DRAW;
     }
 
     private void rememberSyncResult(

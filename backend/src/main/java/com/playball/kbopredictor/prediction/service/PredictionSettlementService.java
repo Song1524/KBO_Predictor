@@ -119,7 +119,35 @@ public class PredictionSettlementService {
             );
         }
 
+        validateFinalScore(game);
         validateWinnerTeam(game);
+    }
+
+    private void validateFinalScore(Game game) {
+        Integer homeScore = game.getHomeScore();
+        Integer awayScore = game.getAwayScore();
+        if (homeScore == null || awayScore == null
+                || homeScore < 0 || awayScore < 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Final score is not available"
+            );
+        }
+
+        GameResult scoreResult;
+        if (homeScore > awayScore) {
+            scoreResult = GameResult.HOME_WIN;
+        } else if (homeScore < awayScore) {
+            scoreResult = GameResult.AWAY_WIN;
+        } else {
+            scoreResult = GameResult.DRAW;
+        }
+        if (scoreResult != game.getResult()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Final score and game result do not match"
+            );
+        }
     }
 
     private void validateWinnerTeam(Game game) {
