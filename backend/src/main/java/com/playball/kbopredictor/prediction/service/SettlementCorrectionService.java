@@ -40,7 +40,6 @@ public class SettlementCorrectionService {
     private static final int TARGET_POINT_AMOUNT = 100;
     private static final BigDecimal TARGET_FINAL_ODDS =
             new BigDecimal("2.00");
-    private static final int TARGET_POINT_BEFORE = 900;
     private static final int TARGET_HOME_SCORE = 7;
     private static final int TARGET_AWAY_SCORE = 2;
 
@@ -97,7 +96,7 @@ public class SettlementCorrectionService {
             );
         }
 
-        validateBeforeCorrection(prediction, user, request);
+        validateBeforeCorrection(prediction);
 
         pointService.rewardSettlementCorrection(user, prediction, payout);
         prediction.settleWon();
@@ -121,8 +120,7 @@ public class SettlementCorrectionService {
                 || !TARGET_EXTERNAL_GAME_ID.equals(request.expectedExternalGameId())
                 || TARGET_OUTCOME != request.expectedOutcome()
                 || !Integer.valueOf(TARGET_POINT_AMOUNT).equals(request.expectedPointAmount())
-                || TARGET_FINAL_ODDS.compareTo(request.expectedFinalOdds()) != 0
-                || !Integer.valueOf(TARGET_POINT_BEFORE).equals(request.expectedCurrentPoint())) {
+                || TARGET_FINAL_ODDS.compareTo(request.expectedFinalOdds()) != 0) {
             throw conflict("요청의 예상값이 승인된 단일 보정 건과 일치하지 않습니다.");
         }
     }
@@ -186,19 +184,12 @@ public class SettlementCorrectionService {
         return finalOdds;
     }
 
-    private void validateBeforeCorrection(
-            UserPrediction prediction,
-            User user,
-            SettlementCorrectionRequest request
-    ) {
+    private void validateBeforeCorrection(UserPrediction prediction) {
         if (!Boolean.TRUE.equals(prediction.getSettled())
                 || !Boolean.FALSE.equals(prediction.getIsCorrect())
                 || prediction.getSettlementStatus()
                 != PredictionSettlementStatus.LOST) {
             throw conflict("예측이 보정 전 LOST 상태와 일치하지 않습니다.");
-        }
-        if (!request.expectedCurrentPoint().equals(user.getPoint())) {
-            throw conflict("사용자 현재 포인트가 예상값과 일치하지 않습니다.");
         }
     }
 
@@ -221,7 +212,7 @@ public class SettlementCorrectionService {
                 || !prediction.getId().equals(reward.getUserPrediction().getId())
                 || reward.getType() != PointHistoryType.PREDICTION_REWARD
                 || reward.getPointChange() != payout
-                || reward.getBalanceAfter() != TARGET_POINT_BEFORE + payout) {
+                || reward.getBalanceAfter() < payout) {
             throw conflict("기존 reward 이력이 승인된 보정 내용과 일치하지 않습니다.");
         }
     }

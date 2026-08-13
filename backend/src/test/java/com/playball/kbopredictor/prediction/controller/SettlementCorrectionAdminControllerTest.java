@@ -37,8 +37,7 @@ class SettlementCorrectionAdminControllerTest {
               "expectedExternalGameId": "20260812SSHT0",
               "expectedOutcome": "HOME_WIN",
               "expectedPointAmount": 100,
-              "expectedFinalOdds": 2.00,
-              "expectedCurrentPoint": 900
+              "expectedFinalOdds": 2.00
             }
             """;
 

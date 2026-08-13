@@ -164,15 +164,42 @@ class SettlementCorrectionServiceTest {
     }
 
     @Test
+    void paysFromCurrentEightHundredPointBalanceAfterLaterBet() {
+        ReflectionTestUtils.setField(user, "point", 800);
+
+        SettlementCorrectionResponse response = service.correct(2L, request());
+
+        assertThat(response.currentPoint()).isEqualTo(1_000);
+        assertThat(user.getPoint()).isEqualTo(1_000);
+        assertThat(savedReward.get().getPointChange()).isEqualTo(200);
+        assertThat(savedReward.get().getBalanceAfter()).isEqualTo(1_000);
+    }
+
+    @Test
+    void alwaysAddsPayoutToExecutionTimeBalanceAfterSeveralPointChanges() {
+        user.changePoint(-100);
+        user.changePoint(75);
+        user.changePoint(-25);
+        assertThat(user.getPoint()).isEqualTo(850);
+
+        SettlementCorrectionResponse response = service.correct(2L, request());
+
+        assertThat(response.currentPoint()).isEqualTo(1_050);
+        assertThat(savedReward.get().getBalanceAfter()).isEqualTo(1_050);
+    }
+
+    @Test
     void repeatedRequestReturnsAlreadyAppliedWithoutPayingAgain() {
+        ReflectionTestUtils.setField(user, "point", 800);
+
         SettlementCorrectionResponse first = service.correct(2L, request());
         SettlementCorrectionResponse second = service.correct(2L, request());
 
         assertThat(first.status()).isEqualTo(SettlementCorrectionStatus.APPLIED);
         assertThat(second.status())
                 .isEqualTo(SettlementCorrectionStatus.ALREADY_APPLIED);
-        assertThat(second.currentPoint()).isEqualTo(1_100);
-        assertThat(user.getPoint()).isEqualTo(1_100);
+        assertThat(second.currentPoint()).isEqualTo(1_000);
+        assertThat(user.getPoint()).isEqualTo(1_000);
         verify(pointHistoryRepository, times(1)).save(any(PointHistory.class));
     }
 
@@ -190,13 +217,6 @@ class SettlementCorrectionServiceTest {
                 .thenReturn(Optional.of(gameOdds));
 
         assertCorrectionConflict("최종 HOME 배당");
-    }
-
-    @Test
-    void currentPointMismatchStopsBeforeAnyChange() {
-        ReflectionTestUtils.setField(user, "point", 899);
-
-        assertCorrectionConflict("현재 포인트");
     }
 
     @Test
@@ -224,6 +244,45 @@ class SettlementCorrectionServiceTest {
         assertThat(samsungPrediction.getSettlementStatus())
                 .isEqualTo(PredictionSettlementStatus.LOST);
         verify(userPredictionRepository, never()).findByIdForUpdate(1L);
+    }
+
+    @Test
+    void laterPredictionAndItsBetHistoryRemainUnchanged() {
+        ReflectionTestUtils.setField(user, "point", 800);
+        Game laterGame = TestEntities.game(
+                13L,
+                GameStatus.SCHEDULED,
+                LocalDate.of(2026, 8, 13),
+                LocalTime.of(18, 30)
+        );
+        UserPrediction laterPrediction = UserPrediction.create(
+                user,
+                laterGame,
+                PredictionOutcome.AWAY_WIN,
+                100
+        );
+        ReflectionTestUtils.setField(laterPrediction, "id", 3L);
+        PointHistory laterBet = PointHistory.create(
+                user,
+                laterGame,
+                laterPrediction,
+                -100,
+                800,
+                PointHistoryType.PREDICTION_BET,
+                "후속 경기 예측 참여",
+                NOW.minusHours(1)
+        );
+
+        service.correct(2L, request());
+
+        assertThat(laterPrediction.getSettled()).isFalse();
+        assertThat(laterPrediction.getIsCorrect()).isNull();
+        assertThat(laterPrediction.getSettlementStatus())
+                .isEqualTo(PredictionSettlementStatus.PENDING);
+        assertThat(laterBet.getType()).isEqualTo(PointHistoryType.PREDICTION_BET);
+        assertThat(laterBet.getPointChange()).isEqualTo(-100);
+        assertThat(laterBet.getBalanceAfter()).isEqualTo(800);
+        verify(userPredictionRepository, never()).findByIdForUpdate(3L);
     }
 
     @Test
@@ -259,8 +318,7 @@ class SettlementCorrectionServiceTest {
                 "20260812SSHT0",
                 PredictionOutcome.HOME_WIN,
                 100,
-                new BigDecimal("2.00"),
-                900
+                new BigDecimal("2.00")
         );
     }
 
