@@ -2,6 +2,7 @@ package com.playball.kbopredictor.game.collection;
 
 import com.playball.kbopredictor.game.entity.GameResult;
 import com.playball.kbopredictor.game.entity.GameStatus;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -15,6 +16,7 @@ import java.util.Locale;
 import java.util.Map;
 
 @Component
+@Slf4j
 public class OfficialFinalScoreParser {
 
     private static final DateTimeFormatter KBO_DATE =
@@ -52,6 +54,19 @@ public class OfficialFinalScoreParser {
                 if (state != null) {
                     states.put(externalGameId, state);
                 }
+                log.debug(
+                        "KBO GameCenter state: gameId={}, gameState={}, resultCheck={}, scoreCheck={}, inning={}, topBottom={}, awayScore={}, homeScore={}, cancelCode={}, detail={}",
+                        externalGameId,
+                        text(game, "GAME_STATE_SC"),
+                        text(game, "GAME_RESULT_CK"),
+                        text(game, "SCORE_CK"),
+                        text(game, "GAME_INN_NO"),
+                        text(game, "GAME_TB_SC"),
+                        text(game, "T_SCORE_CN"),
+                        text(game, "B_SCORE_CN"),
+                        text(game, "CANCEL_SC_ID"),
+                        text(game, "DETAIL_SC")
+                );
             } catch (RuntimeException exception) {
                 errors.add(externalGameId + ": " + exception.getMessage());
                 continue;
@@ -87,11 +102,20 @@ public class OfficialFinalScoreParser {
         if (status == null) {
             return null;
         }
+        Integer awayScore = null;
+        Integer homeScore = null;
+        if (status == GameStatus.IN_PROGRESS
+                && "1".equals(text(game, "SCORE_CK"))) {
+            awayScore = optionalNonNegativeInteger(game, "T_SCORE_CN");
+            homeScore = optionalNonNegativeInteger(game, "B_SCORE_CN");
+        }
         return new OfficialGameState(
                 externalGameId,
                 requiredText(game, "AWAY_ID"),
                 requiredText(game, "HOME_ID"),
-                status
+                status,
+                awayScore,
+                homeScore
         );
     }
 
@@ -182,6 +206,19 @@ public class OfficialFinalScoreParser {
             return parsed;
         } catch (NumberFormatException exception) {
             throw new IllegalArgumentException(field + " is not an integer");
+        }
+    }
+
+    private Integer optionalNonNegativeInteger(JsonNode node, String field) {
+        String value = text(node, field);
+        if (value.isBlank()) {
+            return null;
+        }
+        try {
+            int parsed = Integer.parseInt(value);
+            return parsed < 0 ? null : parsed;
+        } catch (NumberFormatException exception) {
+            return null;
         }
     }
 

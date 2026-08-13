@@ -97,6 +97,51 @@ class OfficialFinalScoreParserTest {
         assertThat(batch.statesByExternalGameId()).hasSize(5);
         assertThat(batch.statesByExternalGameId().values())
                 .allMatch(state -> state.status() == GameStatus.SCHEDULED);
+        assertThat(batch.statesByExternalGameId().values())
+                .allMatch(state -> state.awayScore() == null
+                        && state.homeScore() == null);
+    }
+
+    @Test
+    void liveStateProvidesZeroZeroAndActualScores() {
+        LocalDate date = LocalDate.of(2026, 8, 13);
+        OfficialFinalScoreBatch batch = parser.parse("""
+                {"code":"100","game":[
+                  {"G_DT":"20260813","G_ID":"20260813HHOB0","AWAY_ID":"HH","HOME_ID":"OB","GAME_STATE_SC":"2","GAME_RESULT_CK":0,"SCORE_CK":"1","CANCEL_SC_ID":"0","GAME_INN_NO":3,"GAME_TB_SC":"T","T_SCORE_CN":"0","B_SCORE_CN":"2"},
+                  {"G_DT":"20260813","G_ID":"20260813LTSK0","AWAY_ID":"LT","HOME_ID":"SK","GAME_STATE_SC":"2","GAME_RESULT_CK":0,"SCORE_CK":"1","CANCEL_SC_ID":"0","GAME_INN_NO":3,"GAME_TB_SC":"B","T_SCORE_CN":"3","B_SCORE_CN":"0"},
+                  {"G_DT":"20260813","G_ID":"20260813SSHT0","AWAY_ID":"SS","HOME_ID":"HT","GAME_STATE_SC":"2","GAME_RESULT_CK":0,"SCORE_CK":"1","CANCEL_SC_ID":"0","GAME_INN_NO":4,"GAME_TB_SC":"T","T_SCORE_CN":"0","B_SCORE_CN":"0"},
+                  {"G_DT":"20260813","G_ID":"20260813KTNC0","AWAY_ID":"KT","HOME_ID":"NC","GAME_STATE_SC":"2","GAME_RESULT_CK":0,"SCORE_CK":"1","CANCEL_SC_ID":"0","GAME_INN_NO":3,"GAME_TB_SC":"B","T_SCORE_CN":"3","B_SCORE_CN":"0"},
+                  {"G_DT":"20260813","G_ID":"20260813LGWO0","AWAY_ID":"LG","HOME_ID":"WO","GAME_STATE_SC":"2","GAME_RESULT_CK":0,"SCORE_CK":"1","CANCEL_SC_ID":"0","GAME_INN_NO":3,"GAME_TB_SC":"B","T_SCORE_CN":"1","B_SCORE_CN":"3"}
+                ]}
+                """, date);
+
+        OfficialGameState hanwhaDoosan = batch.statesByExternalGameId()
+                .get("20260813HHOB0");
+        OfficialGameState lotteSsg = batch.statesByExternalGameId()
+                .get("20260813LTSK0");
+        OfficialGameState zeroZero = batch.statesByExternalGameId()
+                .get("20260813SSHT0");
+        OfficialGameState scored = batch.statesByExternalGameId()
+                .get("20260813KTNC0");
+        OfficialGameState lgKiwoom = batch.statesByExternalGameId()
+                .get("20260813LGWO0");
+
+        assertThat(batch.statesByExternalGameId()).hasSize(5);
+        assertThat(hanwhaDoosan.awayScore()).isZero();
+        assertThat(hanwhaDoosan.homeScore()).isEqualTo(2);
+        assertThat(lotteSsg.awayScore()).isEqualTo(3);
+        assertThat(lotteSsg.homeScore()).isZero();
+        assertThat(zeroZero.status()).isEqualTo(GameStatus.IN_PROGRESS);
+        assertThat(zeroZero.awayScore()).isZero();
+        assertThat(zeroZero.homeScore()).isZero();
+        assertThat(scored.status()).isEqualTo(GameStatus.IN_PROGRESS);
+        assertThat(scored.awayScore()).isEqualTo(3);
+        assertThat(scored.homeScore()).isZero();
+        assertThat(lgKiwoom.awayScore()).isEqualTo(1);
+        assertThat(lgKiwoom.homeScore()).isEqualTo(3);
+        assertThat(batch.statesByExternalGameId().values())
+                .allMatch(state -> state.status() == GameStatus.IN_PROGRESS);
+        assertThat(batch.scoresByExternalGameId()).isEmpty();
     }
 
     @Test

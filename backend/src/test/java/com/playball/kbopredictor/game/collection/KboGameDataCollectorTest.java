@@ -15,7 +15,6 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
@@ -194,7 +193,9 @@ class KboGameDataCollectorTest {
                                 "20260813SSHT0",
                                 "SS",
                                 "HT",
-                                GameStatus.SCHEDULED
+                                GameStatus.SCHEDULED,
+                                null,
+                                null
                         )),
                         List.of()
                 ));
@@ -212,7 +213,7 @@ class KboGameDataCollectorTest {
     }
 
     @Test
-    void gameCenterIsNotRequestedWhenScheduleIsScheduled() {
+    void scheduledScheduleStillUsesOfficialGameCenterState() {
         LocalDate date = LocalDate.of(2026, 8, 12);
         when(scheduleClient.fetchSchedule(YearMonth.of(2026, 8)))
                 .thenReturn("schedule-json");
@@ -229,11 +230,130 @@ class KboGameDataCollectorTest {
                         List.of()
                 )
         );
+        when(officialGameResultSource.fetchGameList(date))
+                .thenReturn("game-center-json");
+        when(officialFinalScoreParser.parse("game-center-json", date))
+                .thenReturn(new OfficialFinalScoreBatch(
+                        Map.of(),
+                        Map.of("20260812LGKT0", new OfficialGameState(
+                                "20260812LGKT0",
+                                "LG",
+                                "KT",
+                                GameStatus.SCHEDULED,
+                                null,
+                                null
+                        )),
+                        List.of()
+                ));
 
         GameCollectionBatch batch = collector().collect(date);
 
-        assertThat(batch.games()).hasSize(1);
-        verifyNoInteractions(officialGameResultSource, officialFinalScoreParser);
+        assertThat(batch.games()).singleElement().satisfies(game -> {
+            assertThat(game.status()).isEqualTo(GameStatus.SCHEDULED);
+            assertThat(game.awayScore()).isNull();
+            assertThat(game.homeScore()).isNull();
+        });
+        verify(officialGameResultSource).fetchGameList(date);
+        verify(officialFinalScoreParser).parse("game-center-json", date);
+    }
+
+    @Test
+    void officialLiveStateAndScoreOverrideStaleScheduledSchedule() {
+        LocalDate date = LocalDate.of(2026, 8, 13);
+        CollectedGame staleSchedule = new CollectedGame(
+                "20260813KTNC0",
+                2026,
+                date,
+                LocalTime.of(19, 0),
+                "KT",
+                "NC",
+                "창원",
+                GameStatus.SCHEDULED,
+                null,
+                null,
+                null,
+                false,
+                null
+        );
+        when(scheduleClient.fetchSchedule(YearMonth.of(2026, 8)))
+                .thenReturn("schedule-json");
+        when(scheduleParser.parse("schedule-json", date)).thenReturn(
+                new GameCollectionBatch(1, List.of(staleSchedule), List.of())
+        );
+        when(officialGameResultSource.fetchGameList(date))
+                .thenReturn("game-center-json");
+        when(officialFinalScoreParser.parse("game-center-json", date))
+                .thenReturn(new OfficialFinalScoreBatch(
+                        Map.of(),
+                        Map.of("20260813KTNC0", new OfficialGameState(
+                                "20260813KTNC0",
+                                "KT",
+                                "NC",
+                                GameStatus.IN_PROGRESS,
+                                3,
+                                0
+                        )),
+                        List.of()
+                ));
+
+        GameCollectionBatch batch = collector().collect(date);
+
+        assertThat(batch.games()).singleElement().satisfies(game -> {
+            assertThat(game.status()).isEqualTo(GameStatus.IN_PROGRESS);
+            assertThat(game.awayScore()).isEqualTo(3);
+            assertThat(game.homeScore()).isZero();
+            assertThat(game.result()).isNull();
+            assertThat(game.finalScoreConfirmed()).isFalse();
+        });
+    }
+
+    @Test
+    void officialLiveZeroZeroRemainsInProgressWithRealZeroScores() {
+        LocalDate date = LocalDate.of(2026, 8, 13);
+        CollectedGame staleSchedule = new CollectedGame(
+                "20260813SSHT0",
+                2026,
+                date,
+                LocalTime.of(19, 0),
+                "SS",
+                "HT",
+                "광주",
+                GameStatus.SCHEDULED,
+                null,
+                null,
+                null,
+                false,
+                null
+        );
+        when(scheduleClient.fetchSchedule(YearMonth.of(2026, 8)))
+                .thenReturn("schedule-json");
+        when(scheduleParser.parse("schedule-json", date)).thenReturn(
+                new GameCollectionBatch(1, List.of(staleSchedule), List.of())
+        );
+        when(officialGameResultSource.fetchGameList(date))
+                .thenReturn("game-center-json");
+        when(officialFinalScoreParser.parse("game-center-json", date))
+                .thenReturn(new OfficialFinalScoreBatch(
+                        Map.of(),
+                        Map.of("20260813SSHT0", new OfficialGameState(
+                                "20260813SSHT0",
+                                "SS",
+                                "HT",
+                                GameStatus.IN_PROGRESS,
+                                0,
+                                0
+                        )),
+                        List.of()
+                ));
+
+        GameCollectionBatch batch = collector().collect(date);
+
+        assertThat(batch.games()).singleElement().satisfies(game -> {
+            assertThat(game.status()).isEqualTo(GameStatus.IN_PROGRESS);
+            assertThat(game.awayScore()).isZero();
+            assertThat(game.homeScore()).isZero();
+            assertThat(game.result()).isNull();
+        });
     }
 
     private KboGameDataCollector collector() {

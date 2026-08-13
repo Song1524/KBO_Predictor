@@ -6,6 +6,8 @@ public record OfficialGameState(
         String externalGameId,
         String awayTeamCode,
         String homeTeamCode,
-        GameStatus status
+        GameStatus status,
+        Integer awayScore,
+        Integer homeScore
 ) {
 }

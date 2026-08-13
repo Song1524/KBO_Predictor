@@ -7,6 +7,7 @@ import com.playball.kbopredictor.game.repository.GameRepository;
 import com.playball.kbopredictor.team.entity.Team;
 import com.playball.kbopredictor.team.repository.TeamRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,7 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class GameUpsertService {
 
     private final GameRepository gameRepository;
@@ -87,6 +89,18 @@ public class GameUpsertService {
                     now
             );
             gameRepository.saveAndFlush(game);
+            log.debug(
+                    "KBO game upsert: gameId={}, externalGameId={}, previousStatus={}, collectedStatus={}, storedStatus={}, awayScore={}, homeScore={}, result={}, finalScoreConfirmed={}",
+                    game.getId(),
+                    game.getExternalGameId(),
+                    previous.status(),
+                    collectedGame.status(),
+                    game.getStatus(),
+                    game.getAwayScore(),
+                    game.getHomeScore(),
+                    game.getResult(),
+                    collectedGame.finalScoreConfirmed()
+            );
             return new GameUpsertResult(
                     GameUpsertAction.UPDATED,
                     game.getId(),

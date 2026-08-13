@@ -68,10 +68,7 @@ public class KboGameDataCollector implements GameDataCollector {
             GameCollectionBatch scheduleBatch,
             LocalDate targetDate
     ) {
-        boolean requiresOfficialStatusCheck = scheduleBatch.games().stream()
-                .anyMatch(game -> game.status() == GameStatus.FINISHED
-                        || game.status() == GameStatus.IN_PROGRESS);
-        if (!requiresOfficialStatusCheck) {
+        if (scheduleBatch.games().isEmpty()) {
             return scheduleBatch;
         }
 
@@ -82,12 +79,27 @@ public class KboGameDataCollector implements GameDataCollector {
         List<String> errors = new ArrayList<>(scheduleBatch.errors());
         errors.addAll(scoreBatch.errors());
         List<CollectedGame> games = scheduleBatch.games().stream()
-                .map(game -> confirmFinishedScore(
-                        game,
-                        scoreBatch.scoresByExternalGameId(),
-                        scoreBatch.statesByExternalGameId(),
-                        errors
-                ))
+                .map(game -> {
+                    CollectedGame reconciled = confirmFinishedScore(
+                            game,
+                            scoreBatch.scoresByExternalGameId(),
+                            scoreBatch.statesByExternalGameId(),
+                            errors
+                    );
+                    log.debug(
+                            "KBO collected game reconciliation: gameId={}, scheduleStatus={}, scheduleAwayScore={}, scheduleHomeScore={}, collectedStatus={}, collectedAwayScore={}, collectedHomeScore={}, result={}, finalScoreConfirmed={}",
+                            game.externalGameId(),
+                            game.status(),
+                            game.awayScore(),
+                            game.homeScore(),
+                            reconciled.status(),
+                            reconciled.awayScore(),
+                            reconciled.homeScore(),
+                            reconciled.result(),
+                            reconciled.finalScoreConfirmed()
+                    );
+                    return reconciled;
+                })
                 .toList();
         long finishedCount = games.stream()
                 .filter(game -> game.status() == GameStatus.FINISHED)
@@ -96,7 +108,7 @@ public class KboGameDataCollector implements GameDataCollector {
                 .filter(CollectedGame::finalScoreConfirmed)
                 .count();
         log.info(
-                "KBO GameCenter final score verification: targetDate={}, finished={}, confirmed={}, unresolved={}",
+                "KBO GameCenter reconciliation: targetDate={}, finished={}, confirmed={}, unresolved={}",
                 targetDate,
                 finishedCount,
                 confirmedCount,
@@ -135,8 +147,12 @@ public class KboGameDataCollector implements GameDataCollector {
             return withStatus(
                     game,
                     GameStatus.IN_PROGRESS,
-                    game.awayScore(),
-                    game.homeScore()
+                    officialState == null
+                            ? game.awayScore()
+                            : officialState.awayScore(),
+                    officialState == null
+                            ? game.homeScore()
+                            : officialState.homeScore()
             );
         }
         if (effectiveStatus == GameStatus.CANCELLED) {
