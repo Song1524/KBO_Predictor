@@ -36,6 +36,30 @@ export type TeamStandingApiResponse = {
   collectedAt: string
 }
 
+export type RankingType =
+  | 'TOTAL_POINT'
+  | 'MONTHLY_PROFIT'
+  | 'WEEKLY_PROFIT'
+
+export type RankingEntryApiResponse = {
+  rank: number
+  userId: number
+  nickname: string
+  currentPoint: number | null
+  periodProfit: number | null
+  predictionCount: number
+  correctCount: number
+  hitRate: number | null
+}
+
+export type RankingApiResponse = {
+  type: RankingType
+  periodStart: string | null
+  periodEndExclusive: string | null
+  rankings: RankingEntryApiResponse[]
+  myRanking: RankingEntryApiResponse | null
+}
+
 export type SignupRequest = {
   email: string
   password: string

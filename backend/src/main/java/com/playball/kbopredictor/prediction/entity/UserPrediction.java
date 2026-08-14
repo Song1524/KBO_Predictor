@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Entity
 @Table(
@@ -57,6 +58,9 @@ public class UserPrediction {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "settled_at")
+    private LocalDateTime settledAt;
+
     public static UserPrediction create(
             User user,
             Game game,
@@ -73,29 +77,36 @@ public class UserPrediction {
         prediction.settlementStatus = PredictionSettlementStatus.PENDING;
         prediction.createdAt = LocalDateTime.now();
         prediction.updatedAt = LocalDateTime.now();
+        prediction.settledAt = null;
 
         return prediction;
     }
 
-    public void settleWon() {
-        settle(PredictionSettlementStatus.WON, true);
+    public void settleWon(LocalDateTime settledAt) {
+        settle(PredictionSettlementStatus.WON, true, settledAt);
     }
 
-    public void settleLost() {
-        settle(PredictionSettlementStatus.LOST, false);
+    public void settleLost(LocalDateTime settledAt) {
+        settle(PredictionSettlementStatus.LOST, false, settledAt);
     }
 
-    public void refund() {
-        settle(PredictionSettlementStatus.REFUNDED, null);
+    public void refund(LocalDateTime settledAt) {
+        settle(PredictionSettlementStatus.REFUNDED, null, settledAt);
     }
 
     private void settle(
             PredictionSettlementStatus status,
-            Boolean correct
+            Boolean correct,
+            LocalDateTime settledAt
     ) {
+        if (Boolean.TRUE.equals(this.settled) || this.settledAt != null) {
+            throw new IllegalStateException("Prediction is already settled");
+        }
+
         this.isCorrect = correct;
         this.settled = true;
         this.settlementStatus = status;
-        this.updatedAt = LocalDateTime.now();
+        this.settledAt = Objects.requireNonNull(settledAt, "settledAt");
+        this.updatedAt = settledAt;
     }
 }

@@ -1,5 +1,6 @@
 package com.playball.kbopredictor.prediction.service;
 
+import com.playball.kbopredictor.common.config.TimeConfig;
 import com.playball.kbopredictor.game.entity.Game;
 import com.playball.kbopredictor.game.entity.GameResult;
 import com.playball.kbopredictor.game.entity.GameStatus;
@@ -15,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -26,6 +29,7 @@ public class PredictionSettlementService {
     private final GameOddsService gameOddsService;
     private final OddsCalculator oddsCalculator;
     private final PointService pointService;
+    private final Clock clock;
 
     @Transactional
     public PredictionSettlementResponse settleGame(Long gameId) {
@@ -48,6 +52,10 @@ public class PredictionSettlementService {
         int refundedCount = 0;
         long totalPaidPoints = 0;
         boolean cancelled = game.getStatus() == GameStatus.CANCELLED;
+        LocalDateTime settledAt = LocalDateTime.ofInstant(
+                clock.instant(),
+                TimeConfig.KOREA_ZONE
+        );
 
         for (UserPrediction prediction : predictions) {
             if (cancelled) {
@@ -56,7 +64,7 @@ public class PredictionSettlementService {
                         prediction.getUser(),
                         prediction
                 );
-                prediction.refund();
+                prediction.refund(settledAt);
                 refundedCount++;
                 totalPaidPoints += refundPoint;
             } else if (prediction.getSelectedOutcome().matches(game.getResult())) {
@@ -69,11 +77,11 @@ public class PredictionSettlementService {
                         prediction,
                         payout
                 );
-                prediction.settleWon();
+                prediction.settleWon(settledAt);
                 correctCount++;
                 totalPaidPoints += payout;
             } else {
-                prediction.settleLost();
+                prediction.settleLost(settledAt);
                 incorrectCount++;
             }
         }

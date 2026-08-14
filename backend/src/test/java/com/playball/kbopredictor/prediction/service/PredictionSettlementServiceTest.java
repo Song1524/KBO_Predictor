@@ -23,9 +23,12 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
@@ -37,6 +40,11 @@ import static org.mockito.Mockito.*;
 class PredictionSettlementServiceTest {
 
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 10, 20, 0);
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+    private static final Clock CLOCK = Clock.fixed(
+            NOW.atZone(SEOUL).toInstant(),
+            ZoneOffset.UTC
+    );
 
     @Mock
     private GameRepository gameRepository;
@@ -61,7 +69,8 @@ class PredictionSettlementServiceTest {
                 userPredictionRepository,
                 gameOddsService,
                 oddsCalculator,
-                pointService
+                pointService,
+                CLOCK
         );
 
         lenient().doAnswer(invocation -> {
@@ -112,6 +121,7 @@ class PredictionSettlementServiceTest {
         assertThat(user.getPoint()).isEqualTo(900 + expectedPayout);
         assertThat(prediction.getSettlementStatus())
                 .isEqualTo(PredictionSettlementStatus.WON);
+        assertThat(prediction.getSettledAt()).isEqualTo(NOW);
         verify(pointService).rewardPrediction(user, prediction, expectedPayout);
     }
 
@@ -148,6 +158,7 @@ class PredictionSettlementServiceTest {
         assertThat(prediction.getSettlementStatus())
                 .isEqualTo(PredictionSettlementStatus.REFUNDED);
         assertThat(prediction.getIsCorrect()).isNull();
+        assertThat(prediction.getSettledAt()).isEqualTo(NOW);
         verify(pointService).refundCancelledGame(user, prediction);
     }
 
@@ -207,7 +218,29 @@ class PredictionSettlementServiceTest {
         assertThat(response.incorrectCount()).isEqualTo(1);
         assertThat(response.totalPaidPoints()).isZero();
         assertThat(user.getPoint()).isEqualTo(900);
+        assertThat(prediction.getSettledAt()).isEqualTo(NOW);
         verifyNoInteractions(pointService);
+    }
+
+    @Test
+    void firstSettlementTimestampCannotBeOverwritten() {
+        Game game = finishedGame(405L, GameResult.HOME_WIN);
+        User user = TestEntities.user(1L, 900);
+        UserPrediction prediction = UserPrediction.create(
+                user,
+                game,
+                PredictionOutcome.AWAY_WIN,
+                100
+        );
+
+        prediction.settleLost(NOW);
+
+        assertThatThrownBy(() -> prediction.refund(NOW.plusDays(1)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Prediction is already settled");
+        assertThat(prediction.getSettledAt()).isEqualTo(NOW);
+        assertThat(prediction.getSettlementStatus())
+                .isEqualTo(PredictionSettlementStatus.LOST);
     }
 
     @Test

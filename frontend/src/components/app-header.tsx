@@ -142,6 +142,17 @@ export function AppHeader() {
               순위
             </Link>
             <Link
+              to="/rankings"
+              className={cn(
+                'text-sm font-medium hover:text-foreground',
+                location.pathname === '/rankings'
+                  ? 'font-semibold text-primary'
+                  : 'text-muted-foreground',
+              )}
+            >
+              랭킹
+            </Link>
+            <Link
               to="/#community"
               className="text-sm font-medium text-muted-foreground hover:text-foreground"
               aria-label="커뮤니티 준비 중 영역으로 이동"
