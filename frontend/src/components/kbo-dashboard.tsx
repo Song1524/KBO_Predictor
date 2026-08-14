@@ -7,6 +7,7 @@ import {
   Trophy,
   Users,
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth-context'
 import { AppHeader } from '@/components/app-header'
 import { Badge } from '@/components/ui/badge'
@@ -24,6 +25,7 @@ import type {
   UserApiResponse,
   UserPredictionApiResponse,
 } from '@/lib/api-types'
+import { useStandings } from '@/lib/use-standings'
 
 const MIN_PREDICTION_POINTS = 100
 const PREDICTION_POINT_UNIT = 100
@@ -186,6 +188,16 @@ function formatProbability(value: number | null) {
   return value == null || !Number.isFinite(value)
     ? '-'
     : `${value.toFixed(1)}%`
+}
+
+function formatStandingWinRate(value: number | null) {
+  if (value == null) return '-'
+  return Number(value).toFixed(3).replace(/^0/, '')
+}
+
+function formatGamesBehind(value: number | null) {
+  if (value == null) return '-'
+  return Number(value) === 0 ? '0' : Number(value).toFixed(1)
 }
 
 function toFiniteNumber(value: number | null | undefined) {
@@ -633,6 +645,12 @@ function GameCard({
 
 export function KboDashboard() {
   const { user, isLoading: isAuthLoading, refreshUser } = useAuth()
+  const {
+    standings,
+    isLoading: isLoadingStandings,
+    error: standingsError,
+    reload: reloadStandings,
+  } = useStandings()
   const [selectedDate, setSelectedDate] = useState(getKoreaDate)
   const [games, setGames] = useState<DashboardGame[]>([])
   const [isLoadingGames, setIsLoadingGames] = useState(true)
@@ -854,27 +872,69 @@ export function KboDashboard() {
               <CardTitle>KBO 순위</CardTitle>
               <CardDescription>정규시즌 팀 순위</CardDescription>
               <CardAction>
-                <Badge variant="outline">준비 중</Badge>
+                <Badge variant="outline">KBO 공식</Badge>
               </CardAction>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-[32px_1fr_64px_48px] gap-2 border-b pb-2 text-xs font-medium text-muted-foreground">
                 <span>순위</span>
                 <span>팀</span>
-                <span>승률</span>
-                <span>게임차</span>
+                <span className="text-right">승률</span>
+                <span className="text-right">게임차</span>
               </div>
-              <div className="flex min-h-44 flex-col items-center justify-center gap-3 py-8 text-center">
-                <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                  <Trophy className="size-5" aria-hidden="true" />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold">순위 데이터 준비 중</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    공식 KBO 순위 데이터를 준비하고 있습니다.
-                  </p>
+              {isLoadingStandings && (
+                <div className="flex min-h-44 items-center justify-center py-8 text-center text-xs text-muted-foreground">
+                  공식 KBO 순위를 불러오는 중입니다.
                 </div>
-              </div>
+              )}
+              {!isLoadingStandings && standingsError && (
+                <div className="flex min-h-44 flex-col items-center justify-center gap-3 py-8 text-center">
+                  <p className="text-xs text-destructive">{standingsError}</p>
+                  <Button variant="outline" size="sm" onClick={reloadStandings}>
+                    다시 시도
+                  </Button>
+                </div>
+              )}
+              {!isLoadingStandings && !standingsError && standings.length === 0 && (
+                <div className="flex min-h-44 flex-col items-center justify-center gap-3 py-8 text-center">
+                  <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                    <Trophy className="size-5" aria-hidden="true" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold">표시할 순위가 없습니다.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      정상 수집된 공식 10팀 순위를 기다리고 있습니다.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {!isLoadingStandings && !standingsError && standings.length > 0 && (
+                <>
+                  <div className="divide-y" aria-label="KBO 상위 5팀">
+                    {standings.slice(0, 5).map((standing) => (
+                      <div
+                        key={standing.teamId}
+                        className="grid grid-cols-[32px_1fr_64px_48px] items-center gap-2 py-3 text-sm"
+                      >
+                        <span className="font-mono font-black">{standing.rank}</span>
+                        <span className="truncate font-semibold">{standing.teamName}</span>
+                        <span className="text-right font-mono font-bold">
+                          {formatStandingWinRate(standing.winRate)}
+                        </span>
+                        <span className="text-right font-mono">
+                          {formatGamesBehind(standing.gamesBehind)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <Link
+                    to="/standings"
+                    className="mt-3 flex justify-end text-xs font-semibold text-primary hover:underline"
+                  >
+                    전체 순위 보기 →
+                  </Link>
+                </>
+              )}
             </CardContent>
           </Card>
 

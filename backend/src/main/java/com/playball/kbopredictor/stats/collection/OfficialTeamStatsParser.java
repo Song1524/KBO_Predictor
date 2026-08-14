@@ -41,16 +41,38 @@ public class OfficialTeamStatsParser {
             if (cells.size() < 12 || !isInteger(cells.get(0))) {
                 continue;
             }
-            String code = KboTeamCatalog.codeOf(cells.get(1));
+            standings.add(parseStandingRow(cells));
+        }
+        return List.copyOf(standings);
+    }
+
+    private OfficialTeamStanding parseStandingRow(List<String> cells) {
+        try {
+            int rank = integer(cells.get(0));
+            int games = integer(cells.get(2));
+            int wins = integer(cells.get(3));
+            int losses = integer(cells.get(4));
+            int draws = integer(cells.get(5));
+            if (games != wins + losses + draws) {
+                throw new PregameDataCollectionException(
+                        "KBO 순위표 경기 수가 승/패/무 합계와 다릅니다: team="
+                                + cells.get(1)
+                );
+            }
+
             int[] recent = parseRecord(cells.get(8), RECENT_PATTERN);
             int[] home = parseRecord(cells.get(10), VENUE_PATTERN);
             int[] away = parseRecord(cells.get(11), VENUE_PATTERN);
-            standings.add(new OfficialTeamStanding(
-                    code,
-                    integer(cells.get(3)),
-                    integer(cells.get(4)),
-                    integer(cells.get(5)),
+            return new OfficialTeamStanding(
+                    rank,
+                    KboTeamCatalog.codeOf(cells.get(1)),
+                    games,
+                    wins,
+                    losses,
+                    draws,
                     decimal(cells.get(6)),
+                    nullableDecimal(cells.get(7)),
+                    nullableText(cells.get(9)),
                     recent[0],
                     recent[2],
                     recent[1],
@@ -60,9 +82,15 @@ public class OfficialTeamStatsParser {
                     away[0],
                     away[2],
                     away[1]
-            ));
+            );
+        } catch (PregameDataCollectionException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw new PregameDataCollectionException(
+                    "KBO 순위표 행을 해석할 수 없습니다: " + cells,
+                    exception
+            );
         }
-        return List.copyOf(standings);
     }
 
     public Map<String, BigDecimal> parseBattingAverages(String html) {
@@ -149,5 +177,19 @@ public class OfficialTeamStatsParser {
 
     private BigDecimal decimal(String value) {
         return new BigDecimal(value.trim());
+    }
+
+    private BigDecimal nullableDecimal(String value) {
+        String normalized = value == null ? "" : value.trim();
+        return normalized.isEmpty() || normalized.equals("-")
+                ? null
+                : decimal(normalized);
+    }
+
+    private String nullableText(String value) {
+        String normalized = value == null ? "" : value.trim();
+        return normalized.isEmpty() || normalized.equals("-")
+                ? null
+                : normalized;
     }
 }

@@ -33,6 +33,9 @@ GET http://localhost:8080/api/points/me/history
 ### 경기별 사용자 배당 조회
 GET http://localhost:8080/api/games/1/odds
 
+### KBO 공식 현재 팀 순위 (공개 조회)
+GET http://localhost:8080/api/standings
+
 ### 경기 예측 정산 또는 취소 경기 환불
 POST http://localhost:8080/api/games/1/settlement
 

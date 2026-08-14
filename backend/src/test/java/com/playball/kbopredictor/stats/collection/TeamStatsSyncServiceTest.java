@@ -44,7 +44,8 @@ class TeamStatsSyncServiceTest {
         service = new TeamStatsSyncService(collector, writer, clock);
         lg = new CollectedTeamStat(
                 new OfficialTeamStanding(
-                        "LG", 55, 45, 1, new BigDecimal("0.550"),
+                        3, "LG", 101, 55, 45, 1,
+                        new BigDecimal("0.550"), new BigDecimal("5.5"), "1승",
                         3, 6, 1, 32, 20, 0, 23, 25, 1
                 ),
                 new BigDecimal("0.270"),

@@ -35,6 +35,12 @@ public class TeamStat {
     @Column(name = "stat_date")
     private LocalDate statDate;
 
+    @Column(name = "official_rank")
+    private Integer officialRank;
+
+    @Column(name = "games_played")
+    private Integer gamesPlayed;
+
     @Column(name = "win")
     private Integer wins;
 
@@ -46,6 +52,12 @@ public class TeamStat {
 
     @Column(name = "win_rate", precision = 5, scale = 3)
     private BigDecimal winRate;
+
+    @Column(name = "games_behind", precision = 6, scale = 1)
+    private BigDecimal gamesBehind;
+
+    @Column(length = 20)
+    private String streak;
 
     @Column(name = "recent_10_win")
     private Integer recent10Wins;
@@ -111,6 +123,18 @@ public class TeamStat {
         teamStat.season = season;
         teamStat.statDate = statDate;
         return teamStat;
+    }
+
+    public void updateOfficialStanding(
+            Integer officialRank,
+            Integer gamesPlayed,
+            BigDecimal gamesBehind,
+            String streak
+    ) {
+        this.officialRank = officialRank;
+        this.gamesPlayed = gamesPlayed;
+        this.gamesBehind = gamesBehind;
+        this.streak = streak;
     }
 
     public void update(

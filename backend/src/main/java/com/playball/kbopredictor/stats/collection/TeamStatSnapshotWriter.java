@@ -53,6 +53,12 @@ public class TeamStatSnapshotWriter {
         }
 
         OfficialTeamStanding standing = collected.standing();
+        teamStat.updateOfficialStanding(
+                standing.rank(),
+                standing.games(),
+                standing.gamesBehind(),
+                standing.streak()
+        );
         teamStat.update(
                 standing.wins(),
                 standing.losses(),

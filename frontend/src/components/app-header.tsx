@@ -131,8 +131,13 @@ export function AppHeader() {
               승부예측
             </Link>
             <Link
-              to="/#standings"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground"
+              to="/standings"
+              className={cn(
+                'text-sm font-medium hover:text-foreground',
+                location.pathname === '/standings'
+                  ? 'font-semibold text-primary'
+                  : 'text-muted-foreground',
+              )}
             >
               순위
             </Link>

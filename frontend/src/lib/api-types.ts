@@ -21,6 +21,21 @@ export type TeamApiResponse = {
   secondaryColor: string
 }
 
+export type TeamStandingApiResponse = {
+  rank: number
+  teamId: number
+  teamName: string
+  games: number
+  wins: number
+  losses: number
+  draws: number
+  winRate: number | null
+  gamesBehind: number | null
+  streak: string | null
+  statDate: string
+  collectedAt: string
+}
+
 export type SignupRequest = {
   email: string
   password: string
