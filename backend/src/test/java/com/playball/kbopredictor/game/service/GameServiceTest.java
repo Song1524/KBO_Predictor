@@ -58,7 +58,7 @@ class GameServiceTest {
     @Test
     void mapsBothOneSidedAndUnannouncedStartersByGameWithOneBatchQuery() {
         Game first = game(1L, "20260812LTSK0", 11L, 12L);
-        Game second = game(2L, "20260812SSHT0", 21L, 22L);
+        Game second = game(2L, "20260812SSHT1", 21L, 22L);
         Game third = game(3L, "20260812LGWO0", 31L, 32L);
         List<Game> games = List.of(first, second, third);
         when(gameRepository.findByGameDateOrderByGameTimeAsc(GAME_DATE))

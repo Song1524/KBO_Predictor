@@ -184,6 +184,24 @@ export function MyPage() {
     }
   }, [predictions])
 
+  const payoutByPredictionId = useMemo(() => {
+    const payouts = new Map<number, number>()
+    pointHistories.forEach((history) => {
+      if (
+        history.userPredictionId == null ||
+        (history.type !== 'PREDICTION_REWARD' &&
+          history.type !== 'GAME_CANCEL_REFUND')
+      ) {
+        return
+      }
+      payouts.set(
+        history.userPredictionId,
+        (payouts.get(history.userPredictionId) ?? 0) + history.pointChange,
+      )
+    })
+    return payouts
+  }, [pointHistories])
+
   if (isAuthLoading) {
     return (
       <div className="min-h-screen bg-background text-foreground">
@@ -350,6 +368,14 @@ export function MyPage() {
                           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
                             <span>선택: <strong>{predictionOutcomeLabel(prediction.selectedOutcome, prediction)}</strong></span>
                             <span>참여: <strong className="font-mono">{prediction.pointAmount.toLocaleString()}P</strong></span>
+                            <span>
+                              지급:{' '}
+                              <strong className="font-mono">
+                                {prediction.settlementStatus === 'PENDING'
+                                  ? '-'
+                                  : `${(payoutByPredictionId.get(prediction.id) ?? 0).toLocaleString()}P`}
+                              </strong>
+                            </span>
                           </div>
                           <p className="mt-1 text-xs text-muted-foreground">{settlement.description}</p>
                         </div>

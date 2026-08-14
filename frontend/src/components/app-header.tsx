@@ -46,6 +46,16 @@ export function AppHeader() {
     return () => controller.abort()
   }, [isAuthOpen, mode, teams.length])
 
+  useEffect(() => {
+    const openLogin = () => {
+      setMode('login')
+      setAuthError('')
+      setIsAuthOpen(true)
+    }
+    window.addEventListener('playball:open-login', openLogin)
+    return () => window.removeEventListener('playball:open-login', openLogin)
+  }, [])
+
   const switchMode = (nextMode: AuthMode) => {
     setMode(nextMode)
     setAuthError('')

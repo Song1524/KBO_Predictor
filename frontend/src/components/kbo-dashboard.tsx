@@ -21,8 +21,13 @@ import {
 } from '@/components/ui/card'
 import type {
   PredictionOutcome,
+  UserApiResponse,
   UserPredictionApiResponse,
 } from '@/lib/api-types'
+
+const MIN_PREDICTION_POINTS = 100
+const PREDICTION_POINT_UNIT = 100
+const QUICK_POINT_AMOUNTS = [100, 300, 500] as const
 
 type GameStatus =
   | 'SCHEDULED'
@@ -207,6 +212,25 @@ function formatTotalBetPoints(value: number | null) {
     : `${Number(value).toLocaleString()}P 참여`
 }
 
+function formatPredictionCloseAt(value: string | null) {
+  if (!value) return '마감 시각 미정'
+  return value.replace('T', ' ').slice(0, 16)
+}
+
+function getOutcomeOdds(
+  game: DashboardGame,
+  outcome: PredictionOutcome,
+) {
+  switch (outcome) {
+    case 'HOME_WIN':
+      return game.userOdds?.homeWin ?? null
+    case 'DRAW':
+      return game.userOdds?.draw ?? null
+    case 'AWAY_WIN':
+      return game.userOdds?.awayWin ?? null
+  }
+}
+
 function scoreLabel(score: number | null) {
   return score == null ? '정보 없음' : `${score}점`
 }
@@ -221,38 +245,96 @@ function TeamMark({ teamName }: { teamName: string }) {
 
 function GameCard({
   game,
-  existingSelectedOutcome,
+  existingPrediction,
+  user,
+  isAuthLoading,
   onPredictionCreated,
 }: {
   game: DashboardGame
-  existingSelectedOutcome: PredictionOutcome | null
+  existingPrediction: UserPredictionApiResponse | null
+  user: UserApiResponse | null
+  isAuthLoading: boolean
   onPredictionCreated: () => void
 }) {
   const [pick, setPick] = useState<PredictionOutcome | null>(null)
+  const [pointAmount, setPointAmount] = useState(MIN_PREDICTION_POINTS)
+  const [submittedPrediction, setSubmittedPrediction] =
+    useState<UserPredictionApiResponse | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [predictionMessage, setPredictionMessage] = useState('')
+  const [hasPredictionError, setHasPredictionError] = useState(false)
+  const confirmedPrediction = existingPrediction ?? submittedPrediction
 
   useEffect(() => {
-    if (existingSelectedOutcome) {
-      setPick(existingSelectedOutcome)
+    if (existingPrediction) {
+      setSubmittedPrediction(null)
+      setPick(existingPrediction.selectedOutcome)
+      setPointAmount(existingPrediction.pointAmount)
+      setHasPredictionError(false)
       setPredictionMessage(
-        `${getOutcomeLabel(existingSelectedOutcome, game)}에 이미 예측했습니다.`,
+        `${getOutcomeLabel(existingPrediction.selectedOutcome, game)}에 이미 예측했습니다.`,
       )
       return
     }
 
+    setSubmittedPrediction(null)
     setPick(null)
+    setPointAmount(MIN_PREDICTION_POINTS)
     setPredictionMessage('')
+    setHasPredictionError(false)
   }, [
-    existingSelectedOutcome,
+    existingPrediction?.id,
+    existingPrediction?.pointAmount,
+    existingPrediction?.selectedOutcome,
     game.away,
     game.home,
+    user?.id,
   ])
 
-  const submitPrediction = async (selectedOutcome: PredictionOutcome) => {
+  const requestLogin = () => {
+    setHasPredictionError(true)
+    setPredictionMessage('로그인 후 예측할 수 있습니다. 로그인해 주세요.')
+    window.dispatchEvent(new Event('playball:open-login'))
+  }
+
+  const selectOutcome = (outcome: PredictionOutcome) => {
+    if (!user) {
+      requestLogin()
+      return
+    }
+    if (confirmedPrediction) return
+
+    setPick(outcome)
+    setPredictionMessage('')
+    setHasPredictionError(false)
+  }
+
+  const pointAmountIsValid =
+    Number.isInteger(pointAmount) &&
+    pointAmount >= MIN_PREDICTION_POINTS &&
+    pointAmount % PREDICTION_POINT_UNIT === 0
+  const hasEnoughPoints = user != null && user.point >= pointAmount
+  const selectedOdds = pick ? getOutcomeOdds(game, pick) : null
+  const canSubmit =
+    pick != null &&
+    user != null &&
+    game.userOdds?.bettingOpen === true &&
+    !confirmedPrediction &&
+    !isSubmitting &&
+    pointAmountIsValid &&
+    hasEnoughPoints
+
+  const submitPrediction = async () => {
+    if (!user) {
+      requestLogin()
+      return
+    }
+    if (!pick || !canSubmit) return
+
     try {
       setIsSubmitting(true)
       setPredictionMessage('')
+      setHasPredictionError(false)
 
       const response = await fetch('/api/user-predictions', {
         method: 'POST',
@@ -261,8 +343,8 @@ function GameCard({
         },
         body: JSON.stringify({
           gameId: game.id,
-          selectedOutcome,
-          pointAmount: 100,
+          selectedOutcome: pick,
+          pointAmount,
         }),
         credentials: 'include',
       })
@@ -270,6 +352,7 @@ function GameCard({
       const responseBody = await response.json().catch(() => null)
 
       if (!response.ok) {
+        if (response.status === 401) requestLogin()
         throw new Error(
             responseBody?.detail ??
             responseBody?.message ??
@@ -277,12 +360,16 @@ function GameCard({
         )
       }
 
-      setPick(selectedOutcome)
+      const createdPrediction = responseBody as UserPredictionApiResponse
+      setSubmittedPrediction(createdPrediction)
+      setPick(createdPrediction.selectedOutcome)
+      setPointAmount(createdPrediction.pointAmount)
       setPredictionMessage(
-        `${getOutcomeLabel(selectedOutcome, game)}에 100포인트를 예측했습니다.`,
+        `${getOutcomeLabel(createdPrediction.selectedOutcome, game)}에 ${createdPrediction.pointAmount.toLocaleString()}P를 예측했습니다.`,
       )
       onPredictionCreated()
     } catch (error) {
+      setHasPredictionError(true)
       setPredictionMessage(
           error instanceof Error
               ? error.message
@@ -384,18 +471,20 @@ function GameCard({
                   !game.userOdds?.bettingOpen ||
                   !data ||
                   isSubmitting ||
-                  pick !== null
+                  confirmedPrediction !== null ||
+                  isAuthLoading
                 }
                 variant={pick === outcome ? 'default' : 'outline'}
-                onClick={() => submitPrediction(outcome)}
+                onClick={() => selectOutcome(outcome)}
               >
                 <span className="max-w-full truncate font-semibold">
                   {getOutcomeLabel(outcome, game)}
                 </span>
                 <span className="text-[11px] opacity-70">
-                  사용자 {formatBettingRate(data?.userBettingRate ?? null)}
+                  포인트 비율 {formatBettingRate(data?.userBettingRate ?? null)}
                 </span>
                 <span className="font-mono text-xs font-bold">
+                  {game.userOdds?.finalized ? '최종 ' : '현재 '}
                   {formatOdds(data?.odds ?? null)}
                 </span>
               </Button>
@@ -407,6 +496,125 @@ function GameCard({
           </p>
         )}
 
+        {pick && !confirmedPrediction && user && (
+          <div className="grid gap-4 rounded-xl border bg-muted/30 p-4">
+            <div>
+              <p className="text-sm font-bold">예측 정보 확인</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                결과와 포인트를 확인한 뒤 최종 제출해 주세요.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {QUICK_POINT_AMOUNTS.map((amount) => (
+                <Button
+                  key={amount}
+                  type="button"
+                  size="xs"
+                  variant={pointAmount === amount ? 'default' : 'outline'}
+                  disabled={isSubmitting || amount > user.point}
+                  onClick={() => setPointAmount(amount)}
+                >
+                  {amount}P
+                </Button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-[auto_1fr_auto] gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label="참여 포인트 100P 줄이기"
+                disabled={
+                  isSubmitting || pointAmount <= MIN_PREDICTION_POINTS
+                }
+                onClick={() => setPointAmount((amount) =>
+                  Math.max(MIN_PREDICTION_POINTS, amount - PREDICTION_POINT_UNIT),
+                )}
+              >
+                −
+              </Button>
+              <label className="grid gap-1 text-xs font-medium">
+                참여 포인트
+                <input
+                  className="h-9 rounded-md border bg-background px-3 text-right font-mono text-sm"
+                  type="number"
+                  min={MIN_PREDICTION_POINTS}
+                  max={user.point}
+                  step={PREDICTION_POINT_UNIT}
+                  inputMode="numeric"
+                  value={pointAmount}
+                  disabled={isSubmitting}
+                  onChange={(event) => setPointAmount(Number(event.target.value))}
+                />
+              </label>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label="참여 포인트 100P 늘리기"
+                disabled={
+                  isSubmitting || pointAmount + PREDICTION_POINT_UNIT > user.point
+                }
+                onClick={() => setPointAmount((amount) =>
+                  amount + PREDICTION_POINT_UNIT,
+                )}
+              >
+                +
+              </Button>
+            </div>
+
+            <dl className="grid gap-2 text-xs sm:grid-cols-2">
+              <div><dt className="text-muted-foreground">선택</dt><dd className="mt-0.5 font-semibold">{getOutcomeLabel(pick, game)}</dd></div>
+              <div><dt className="text-muted-foreground">참여 포인트</dt><dd className="mt-0.5 font-mono font-semibold">{Number.isFinite(pointAmount) ? pointAmount.toLocaleString() : '-'}P</dd></div>
+              <div><dt className="text-muted-foreground">현재 보유 포인트</dt><dd className="mt-0.5 font-mono font-semibold">{user.point.toLocaleString()}P</dd></div>
+              <div><dt className="text-muted-foreground">참여 후 예상 잔액</dt><dd className="mt-0.5 font-mono font-semibold">{pointAmountIsValid && hasEnoughPoints ? (user.point - pointAmount).toLocaleString() : '-'}P</dd></div>
+              <div><dt className="text-muted-foreground">현재 배당</dt><dd className="mt-0.5 font-mono font-semibold">{formatOdds(selectedOdds?.odds ?? null)}</dd></div>
+              <div><dt className="text-muted-foreground">예측 마감</dt><dd className="mt-0.5 font-semibold">{formatPredictionCloseAt(game.userOdds?.predictionCloseAt ?? null)}</dd></div>
+            </dl>
+
+            {!pointAmountIsValid && (
+              <p className="text-xs font-medium text-destructive">
+                참여 포인트는 100P 이상, 100P 단위로 입력해 주세요.
+              </p>
+            )}
+            {pointAmountIsValid && !hasEnoughPoints && (
+              <p className="text-xs font-medium text-destructive">
+                포인트가 부족합니다.
+              </p>
+            )}
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              현재 배당은 다른 사용자의 참여에 따라 마감 전까지 변동되며,
+              적중 시 지급 포인트는 마감 시 확정된 최종 배당으로 계산됩니다.
+            </p>
+            <Button disabled={!canSubmit} onClick={() => void submitPrediction()}>
+              {isSubmitting
+                ? '예측 등록 중...'
+                : `${Number.isFinite(pointAmount) ? pointAmount.toLocaleString() : '-'}P로 예측하기`}
+            </Button>
+          </div>
+        )}
+
+        {confirmedPrediction && (
+          <div className="grid gap-2 rounded-xl border border-primary/30 bg-primary/5 p-4 text-sm">
+            <div className="flex items-center justify-between gap-2">
+              <strong>이미 예측했습니다</strong>
+              <Badge variant="outline">변경 불가</Badge>
+            </div>
+            <p>
+              선택 <strong>{getOutcomeLabel(confirmedPrediction.selectedOutcome, game)}</strong>
+              <span className="mx-2 text-muted-foreground">·</span>
+              참여 <strong className="font-mono">{confirmedPrediction.pointAmount.toLocaleString()}P</strong>
+            </p>
+            {!game.userOdds?.bettingOpen && game.userOdds?.finalized && (
+              <p className="text-xs text-muted-foreground">
+                선택 결과 최종 배당 {formatOdds(getOutcomeOdds(game, confirmedPrediction.selectedOutcome)?.odds ?? null)}
+              </p>
+            )}
+          </div>
+        )}
+
         {game.userOdds && !game.userOdds.bettingOpen && (
           <p className="text-center text-xs text-muted-foreground">
             {game.userOdds.finalized ? '예측 마감 · 최종 배당' : '예측 참여 불가'}
@@ -414,7 +622,7 @@ function GameCard({
         )}
 
         {predictionMessage && (
-          <p className="text-center text-xs font-medium text-primary">
+          <p className={`text-center text-xs font-medium ${hasPredictionError ? 'text-destructive' : 'text-primary'}`}>
             {predictionMessage}
           </p>
         )}
@@ -621,9 +829,9 @@ export function KboDashboard() {
                   >
                     <GameCard
                         game={game}
-                        existingSelectedOutcome={
-                            existingPrediction?.selectedOutcome ?? null
-                        }
+                        existingPrediction={existingPrediction ?? null}
+                        user={user}
+                        isAuthLoading={isAuthLoading}
                         onPredictionCreated={() => {
                           void refreshUser()
                           void loadUserPredictions()

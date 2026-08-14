@@ -34,6 +34,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.reset;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -105,6 +106,24 @@ class AuthenticationWebTest {
                                 request.pointAmount().equals(100)
                 )
         );
+    }
+
+    @Test
+    void predictionRejectsPointAmountBelowMinimumBeforeCallingService() throws Exception {
+        mockMvc.perform(post("/api/user-predictions")
+                        .with(user(authenticatedUser("encoded-password")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "gameId": 10,
+                                  "selectedOutcome": "DRAW",
+                                  "pointAmount": 50
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.pointAmount").exists());
+
+        verifyNoInteractions(userPredictionService);
     }
 
     @Test

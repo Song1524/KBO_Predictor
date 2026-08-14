@@ -28,7 +28,7 @@ class OfficialFinalScoreParserTest {
                 {"code":"100","game":[
                   {"G_DT":"20260812","G_ID":"20260812HHOB0","AWAY_ID":"HH","HOME_ID":"OB","GAME_STATE_SC":"3","GAME_RESULT_CK":1,"SCORE_CK":"1","CANCEL_SC_ID":"0","T_SCORE_CN":4,"B_SCORE_CN":3},
                   {"G_DT":"20260812","G_ID":"20260812LTSK0","AWAY_ID":"LT","HOME_ID":"SK","GAME_STATE_SC":"3","GAME_RESULT_CK":1,"SCORE_CK":"1","CANCEL_SC_ID":"0","T_SCORE_CN":1,"B_SCORE_CN":9},
-                  {"G_DT":"20260812","G_ID":"20260812SSHT0","AWAY_ID":"SS","HOME_ID":"HT","GAME_STATE_SC":"3","GAME_RESULT_CK":1,"SCORE_CK":"1","CANCEL_SC_ID":"0","T_SCORE_CN":2,"B_SCORE_CN":7},
+                  {"G_DT":"20260812","G_ID":"20260812SSHT1","AWAY_ID":"SS","HOME_ID":"HT","GAME_STATE_SC":"3","GAME_RESULT_CK":1,"SCORE_CK":"1","CANCEL_SC_ID":"0","T_SCORE_CN":5,"B_SCORE_CN":7},
                   {"G_DT":"20260812","G_ID":"20260812KTNC0","AWAY_ID":"KT","HOME_ID":"NC","GAME_STATE_SC":"3","GAME_RESULT_CK":1,"SCORE_CK":"1","CANCEL_SC_ID":"0","T_SCORE_CN":0,"B_SCORE_CN":3},
                   {"G_DT":"20260812","G_ID":"20260812LGWO0","AWAY_ID":"LG","HOME_ID":"WO","GAME_STATE_SC":"3","GAME_RESULT_CK":1,"SCORE_CK":"1","CANCEL_SC_ID":"0","T_SCORE_CN":3,"B_SCORE_CN":4}
                 ]}
@@ -38,7 +38,7 @@ class OfficialFinalScoreParserTest {
         assertThat(batch.scoresByExternalGameId()).hasSize(5);
         assertScore(batch, "20260812HHOB0", 4, 3, GameResult.AWAY_WIN);
         assertScore(batch, "20260812LTSK0", 1, 9, GameResult.HOME_WIN);
-        assertScore(batch, "20260812SSHT0", 2, 7, GameResult.HOME_WIN);
+        assertScore(batch, "20260812SSHT1", 5, 7, GameResult.HOME_WIN);
         assertScore(batch, "20260812KTNC0", 0, 3, GameResult.HOME_WIN);
         assertScore(batch, "20260812LGWO0", 3, 4, GameResult.HOME_WIN);
     }

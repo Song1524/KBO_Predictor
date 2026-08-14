@@ -11,6 +11,7 @@ import com.playball.kbopredictor.prediction.repository.UserPredictionRepository;
 import com.playball.kbopredictor.user.entity.User;
 import com.playball.kbopredictor.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +26,9 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class UserPredictionService {
 
+    static final int MIN_POINT_AMOUNT = 100;
+    static final int POINT_UNIT = 100;
+
     private final UserPredictionRepository userPredictionRepository;
     private final UserRepository userRepository;
     private final GameRepository gameRepository;
@@ -37,6 +41,8 @@ public class UserPredictionService {
             Long authenticatedUserId,
             UserPredictionRequest request
     ) {
+        validatePointAmount(request.pointAmount());
+
         Game game = gameRepository.findByIdForUpdate(request.gameId())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -52,6 +58,7 @@ public class UserPredictionService {
         validateDuplicatePrediction(user.getId(), game.getId());
         validateGameStatus(game);
         validatePredictionDeadline(game);
+        validatePointBalance(user, request.pointAmount());
 
         UserPrediction prediction = UserPrediction.create(
                 user,
@@ -60,8 +67,7 @@ public class UserPredictionService {
                 request.pointAmount()
         );
 
-        UserPrediction savedPrediction =
-                userPredictionRepository.save(prediction);
+        UserPrediction savedPrediction = savePrediction(prediction);
 
         gameOddsService.placeBet(
                 game,
@@ -71,6 +77,42 @@ public class UserPredictionService {
         pointService.useForPrediction(user, savedPrediction);
 
         return UserPredictionResponse.from(savedPrediction);
+    }
+
+    private UserPrediction savePrediction(UserPrediction prediction) {
+        try {
+            return userPredictionRepository.saveAndFlush(prediction);
+        } catch (DataIntegrityViolationException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "이미 해당 경기에 예측했습니다.",
+                    exception
+            );
+        }
+    }
+
+    private void validatePointAmount(Integer pointAmount) {
+        if (pointAmount == null || pointAmount < MIN_POINT_AMOUNT) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "사용 포인트는 최소 100P입니다."
+            );
+        }
+        if (pointAmount % POINT_UNIT != 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "사용 포인트는 100P 단위여야 합니다."
+            );
+        }
+    }
+
+    private void validatePointBalance(User user, int pointAmount) {
+        if (user.getPoint() == null || user.getPoint() < pointAmount) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "보유 포인트가 부족합니다."
+            );
+        }
     }
 
     private void validateDuplicatePrediction(

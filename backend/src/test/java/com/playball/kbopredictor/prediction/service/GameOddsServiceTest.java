@@ -75,6 +75,31 @@ class GameOddsServiceTest {
     }
 
     @Test
+    void ratesAndOddsUseWageredPointsRatherThanParticipantCount() {
+        Game game = TestEntities.game(
+                15L,
+                GameStatus.SCHEDULED,
+                NOW.toLocalDate().plusDays(1),
+                LocalTime.of(18, 30)
+        );
+        GameOdds odds = GameOdds.create(game, NOW);
+        stubLockedGameAndOdds(game, odds);
+
+        service.placeBet(game, PredictionOutcome.HOME_WIN, 1_000);
+        for (int participant = 0; participant < 5; participant++) {
+            service.placeBet(game, PredictionOutcome.AWAY_WIN, 100);
+        }
+
+        GameOddsResponse response = service.getOddsByGameId(game.getId());
+
+        assertThat(response.totalBetPoints()).isEqualTo(1_500);
+        assertThat(response.homeWin().userBettingRate()).isEqualByComparingTo("66.67");
+        assertThat(response.awayWin().userBettingRate()).isEqualByComparingTo("33.33");
+        assertThat(response.homeWin().odds()).isEqualByComparingTo("1.50");
+        assertThat(response.awayWin().odds()).isEqualByComparingTo("3.00");
+    }
+
+    @Test
     void oddsAreFinalizedAfterDeadlineAndCannotChange() {
         Game game = TestEntities.game(
                 20L,

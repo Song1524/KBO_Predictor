@@ -14,13 +14,14 @@ Content-Type: application/json
 GET http://localhost:8080/api/auth/me
 
 ### 로그인 사용자의 승부예측 참여
+# pointAmount: 최소 100P, 100P 단위, 현재 보유 포인트 이하
 POST http://localhost:8080/api/user-predictions
 Content-Type: application/json
 
 {
   "gameId": 1,
   "selectedOutcome": "HOME_WIN",
-  "pointAmount": 100
+  "pointAmount": 300
 }
 
 ### 로그인 사용자의 예측 내역

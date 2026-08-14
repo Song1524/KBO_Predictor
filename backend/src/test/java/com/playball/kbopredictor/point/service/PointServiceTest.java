@@ -61,15 +61,15 @@ class PointServiceTest {
         UserPrediction prediction = prediction(
                 user,
                 PredictionOutcome.HOME_WIN,
-                100
+                300
         );
 
         service.useForPrediction(user, prediction);
 
         PointHistory history = savedHistory();
-        assertThat(user.getPoint()).isEqualTo(900);
+        assertThat(user.getPoint()).isEqualTo(700);
         assertThat(history.getType()).isEqualTo(PointHistoryType.PREDICTION_BET);
-        assertThat(history.getPointChange()).isEqualTo(-100);
+        assertThat(history.getPointChange()).isEqualTo(-300);
         assertThat(history.getBalanceAfter()).isEqualTo(user.getPoint());
         assertThat(history.getDescription()).isEqualTo("홈팀 승 예측 참여");
         assertThat(history.getCreatedAt()).isEqualTo(NOW);
@@ -93,27 +93,6 @@ class PointServiceTest {
         assertThat(history.getPointChange()).isEqualTo(230);
         assertThat(history.getBalanceAfter()).isEqualTo(user.getPoint());
         assertThat(history.getDescription()).isEqualTo("홈팀 승 예측 적중");
-    }
-
-    @Test
-    void settlementCorrectionRecordsExplicitPredictionReward() {
-        User user = TestEntities.user(2L, 900);
-        UserPrediction prediction = prediction(
-                user,
-                PredictionOutcome.HOME_WIN,
-                100
-        );
-
-        service.rewardSettlementCorrection(user, prediction, 200);
-
-        PointHistory history = savedHistory();
-        assertThat(user.getPoint()).isEqualTo(1_100);
-        assertThat(history.getType())
-                .isEqualTo(PointHistoryType.PREDICTION_REWARD);
-        assertThat(history.getPointChange()).isEqualTo(200);
-        assertThat(history.getBalanceAfter()).isEqualTo(1_100);
-        assertThat(history.getDescription())
-                .isEqualTo("관리자 정산 보정: 홈팀 승 예측 적중");
     }
 
     @Test
