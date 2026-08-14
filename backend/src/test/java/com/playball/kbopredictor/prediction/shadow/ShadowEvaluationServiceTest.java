@@ -36,9 +36,18 @@ class ShadowEvaluationServiceTest {
         Game home = game(1L, from, GameResult.HOME_WIN);
         Game away = game(2L, from.plusDays(1), GameResult.AWAY_WIN);
         Game draw = game(3L, from.plusDays(2), GameResult.DRAW);
+        Game reconstructed = game(4L, from.plusDays(2), GameResult.HOME_WIN);
         PredictionFeatureSnapshot first = snapshot(101L, home);
         PredictionFeatureSnapshot second = snapshot(102L, away);
         PredictionFeatureSnapshot third = snapshot(103L, draw);
+        PredictionFeatureSnapshot reconstructedSnapshot = snapshot(
+                104L, reconstructed
+        );
+        ReflectionTestUtils.setField(
+                reconstructedSnapshot,
+                "generationMethod",
+                PredictionGenerationMethod.HISTORICAL_INTERNAL_GAMES
+        );
 
         List<SystemPredictionHistory> baseline = List.of(
                 history(home, first, PredictionSource.OPERATIONAL,
@@ -46,7 +55,9 @@ class ShadowEvaluationServiceTest {
                 history(away, second, PredictionSource.OPERATIONAL,
                         "baseline-v1", PredictionOutcome.HOME_WIN, "55", "6", "39", null),
                 history(draw, third, PredictionSource.OPERATIONAL,
-                        "baseline-v1", PredictionOutcome.HOME_WIN, "51", "8", "41", null)
+                        "baseline-v1", PredictionOutcome.HOME_WIN, "51", "8", "41", null),
+                history(reconstructed, reconstructedSnapshot, PredictionSource.OPERATIONAL,
+                        "baseline-v1", PredictionOutcome.HOME_WIN, "60", "5", "35", null)
         );
         List<SystemPredictionHistory> logistic = List.of(
                 history(home, first, PredictionSource.SHADOW,
@@ -54,7 +65,9 @@ class ShadowEvaluationServiceTest {
                 history(away, second, PredictionSource.SHADOW,
                         "logistic-v1", PredictionOutcome.AWAY_WIN, "40", "2", "58", HASH),
                 history(draw, third, PredictionSource.SHADOW,
-                        "logistic-v1", PredictionOutcome.HOME_WIN, "52", "4", "44", HASH)
+                        "logistic-v1", PredictionOutcome.HOME_WIN, "52", "4", "44", HASH),
+                history(reconstructed, reconstructedSnapshot, PredictionSource.SHADOW,
+                        "logistic-v1", PredictionOutcome.HOME_WIN, "55", "2", "43", HASH)
         );
         when(repository.findForEvaluation(
                 "baseline-v1", PredictionSource.OPERATIONAL,
@@ -70,7 +83,11 @@ class ShadowEvaluationServiceTest {
         ).evaluate(from, to);
 
         assertThat(response.commonEvaluatedGameCount()).isEqualTo(3);
+        assertThat(response.baselineEligibleFinalGameCount()).isEqualTo(4);
+        assertThat(response.logisticEligibleFinalGameCount()).isEqualTo(4);
         assertThat(response.featureSnapshotMismatchCount()).isZero();
+        assertThat(response.nonOperationalSnapshotCount()).isOne();
+        assertThat(response.pregameCutoffViolationCount()).isZero();
         assertThat(response.artifactMismatchCount()).isZero();
         assertThat(response.baselineCorrectLogisticWrongCount()).isEqualTo(1);
         assertThat(response.logisticCorrectBaselineWrongCount()).isEqualTo(1);
@@ -86,6 +103,21 @@ class ShadowEvaluationServiceTest {
                 .isEqualByComparingTo("0.040000");
         assertThat(response.logistic().confusionMatrix().get("AWAY_WIN")
                 .get("AWAY_WIN")).isEqualTo(1);
+        assertThat(response.actualOutcomeRates().get("DRAW"))
+                .isEqualByComparingTo("0.333333");
+        assertThat(response.baseline().averageProbabilities().get("HOME_WIN"))
+                .isEqualByComparingTo("0.553333");
+        assertThat(response.logistic().calibration().get("DRAW").bins())
+                .hasSize(10);
+        assertThat(response.pairedMetrics().get("accuracy")
+                .logisticMinusBaseline()).isEqualByComparingTo("0.000000");
+        assertThat(response.pairedMetrics().get("logLoss")
+                .bootstrap95Lower()).isNull();
+        assertThat(response.sampleSizeAssessment().bootstrapEligible()).isFalse();
+        assertThat(response.sampleSizeAssessment().additionalCommonGamesNeeded())
+                .isEqualTo(197);
+        assertThat(response.sampleSizeAssessment().additionalDrawsNeeded())
+                .isEqualTo(9);
     }
 
     private Game game(Long id, LocalDate date, GameResult result) {
@@ -136,6 +168,11 @@ class ShadowEvaluationServiceTest {
         ReflectionTestUtils.setField(history, "drawProbability", new BigDecimal(draw));
         ReflectionTestUtils.setField(history, "awayWinProbability", new BigDecimal(away));
         ReflectionTestUtils.setField(history, "featureCoverage", BigDecimal.ONE);
+        ReflectionTestUtils.setField(
+                history,
+                "generatedAt",
+                LocalDateTime.of(game.getGameDate(), LocalTime.of(17, 0))
+        );
         return history;
     }
 

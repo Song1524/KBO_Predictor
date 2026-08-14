@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -21,6 +22,8 @@ public class ShadowEvaluationService {
 
     public static final String BASELINE_MODEL = "baseline-v1";
     public static final String SHADOW_MODEL = "logistic-v1";
+    private static final int ADVISORY_PROMOTION_MIN_GAME_COUNT = 200;
+    private static final int ADVISORY_PROMOTION_MIN_PER_OUTCOME_COUNT = 10;
 
     private final SystemPredictionHistoryRepository historyRepository;
     private final ShadowMetricCalculator metricCalculator;
@@ -42,19 +45,22 @@ public class ShadowEvaluationService {
         List<ShadowMetricCalculator.EvaluationPrediction> logisticValues =
                 new ArrayList<>();
         int mismatches = 0;
+        int nonOperationalSnapshots = 0;
+        int pregameCutoffViolations = 0;
         int artifactMismatches = 0;
         int agreement = 0;
         int logisticOnly = 0;
         int baselineOnly = 0;
         int bothCorrect = 0;
         int bothWrong = 0;
+        String artifactHash = artifactLoader.artifactSha256();
 
         List<Long> commonIds = baseline.keySet().stream()
                 .filter(logistic::containsKey).sorted().toList();
         for (Long gameId : commonIds) {
             SystemPredictionHistory baselineHistory = baseline.get(gameId);
             SystemPredictionHistory logisticHistory = logistic.get(gameId);
-            if (!artifactLoader.artifactSha256().equalsIgnoreCase(
+            if (!artifactHash.equalsIgnoreCase(
                     Objects.toString(logisticHistory.getModelArtifactHash(), "")
             )) {
                 artifactMismatches++;
@@ -62,6 +68,14 @@ public class ShadowEvaluationService {
             }
             if (!sameSnapshot(baselineHistory, logisticHistory)) {
                 mismatches++;
+                continue;
+            }
+            if (!operationalSnapshot(baselineHistory, logisticHistory)) {
+                nonOperationalSnapshots++;
+                continue;
+            }
+            if (!beforeGameStart(baselineHistory, logisticHistory)) {
+                pregameCutoffViolations++;
                 continue;
             }
             PredictionOutcome actual = PredictionOutcome.valueOf(
@@ -84,13 +98,24 @@ public class ShadowEvaluationService {
         }
         int count = baselineValues.size();
         return new ShadowEvaluationResponse(
+                "OPERATIONAL_STORED_FINAL_ONLY",
                 from,
                 to,
+                BASELINE_MODEL,
+                SHADOW_MODEL,
+                artifactHash,
+                baseline.size(),
+                logistic.size(),
                 count,
                 mismatches,
+                nonOperationalSnapshots,
+                pregameCutoffViolations,
                 artifactMismatches,
+                metricCalculator.actualOutcomeRates(baselineValues),
                 metricCalculator.calculate(BASELINE_MODEL, baselineValues),
                 metricCalculator.calculate(SHADOW_MODEL, logisticValues),
+                metricCalculator.pairedMetrics(baselineValues, logisticValues),
+                sampleSizeAssessment(baselineValues),
                 ratio(agreement, count),
                 logisticOnly,
                 baselineOnly,
@@ -130,6 +155,85 @@ public class ShadowEvaluationService {
                         baseline.getFeatureSnapshot().getId(),
                         logistic.getFeatureSnapshot().getId()
                 );
+    }
+
+    private boolean operationalSnapshot(
+            SystemPredictionHistory baseline,
+            SystemPredictionHistory logistic
+    ) {
+        return baseline.getFeatureSnapshot().getGenerationMethod()
+                == PredictionGenerationMethod.OPERATIONAL_PREGAME
+                && logistic.getFeatureSnapshot().getGenerationMethod()
+                == PredictionGenerationMethod.OPERATIONAL_PREGAME;
+    }
+
+    private boolean beforeGameStart(
+            SystemPredictionHistory baseline,
+            SystemPredictionHistory logistic
+    ) {
+        var game = baseline.getGame();
+        if (game.getGameDate() == null || game.getGameTime() == null) {
+            return false;
+        }
+        LocalDateTime gameStart = LocalDateTime.of(
+                game.getGameDate(), game.getGameTime()
+        );
+        return before(baseline.getFeatureSnapshot().getFeatureAsOf(), gameStart)
+                && before(logistic.getFeatureSnapshot().getFeatureAsOf(), gameStart)
+                && before(baseline.getGeneratedAt(), gameStart)
+                && before(logistic.getGeneratedAt(), gameStart);
+    }
+
+    private boolean before(LocalDateTime value, LocalDateTime cutoff) {
+        return value != null && value.isBefore(cutoff);
+    }
+
+    private ShadowSampleSizeAssessment sampleSizeAssessment(
+            List<ShadowMetricCalculator.EvaluationPrediction> values
+    ) {
+        int home = count(values, PredictionOutcome.HOME_WIN);
+        int draw = count(values, PredictionOutcome.DRAW);
+        int away = count(values, PredictionOutcome.AWAY_WIN);
+        int total = values.size();
+        boolean bootstrapEligible = total
+                >= ShadowMetricCalculator.MIN_BOOTSTRAP_GAME_COUNT;
+        boolean promotionSizeReached = total
+                >= ADVISORY_PROMOTION_MIN_GAME_COUNT
+                && Math.min(home, Math.min(draw, away))
+                >= ADVISORY_PROMOTION_MIN_PER_OUTCOME_COUNT;
+        String recommendation;
+        if (total == 0) {
+            recommendation = "NO_COMMON_OPERATIONAL_FINAL_GAMES";
+        } else if (!bootstrapEligible) {
+            recommendation = "TOO_FEW_GAMES_FOR_PAIRED_BOOTSTRAP";
+        } else if (!promotionSizeReached) {
+            recommendation = "CONTINUE_SHADOW_COLLECTION";
+        } else {
+            recommendation = "SAMPLE_SIZE_GATE_REACHED_REVIEW_CI_AND_CALIBRATION";
+        }
+        return new ShadowSampleSizeAssessment(
+                total,
+                home,
+                draw,
+                away,
+                ShadowMetricCalculator.MIN_BOOTSTRAP_GAME_COUNT,
+                bootstrapEligible,
+                ADVISORY_PROMOTION_MIN_GAME_COUNT,
+                ADVISORY_PROMOTION_MIN_PER_OUTCOME_COUNT,
+                promotionSizeReached,
+                Math.max(0, ADVISORY_PROMOTION_MIN_GAME_COUNT - total),
+                Math.max(0, ADVISORY_PROMOTION_MIN_PER_OUTCOME_COUNT - draw),
+                recommendation
+        );
+    }
+
+    private int count(
+            List<ShadowMetricCalculator.EvaluationPrediction> values,
+            PredictionOutcome outcome
+    ) {
+        return (int) values.stream()
+                .filter(value -> value.actual() == outcome)
+                .count();
     }
 
     private BigDecimal ratio(int numerator, int denominator) {

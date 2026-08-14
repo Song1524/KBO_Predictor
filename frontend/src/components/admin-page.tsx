@@ -92,6 +92,21 @@ function percent(value: number | null | undefined) {
   return value == null ? '-' : `${(Number(value) * 100).toFixed(2)}%`
 }
 
+function signedMetric(value: number | null | undefined, asPercent = false) {
+  if (value == null) return '-'
+  const amount = asPercent ? Number(value) * 100 : Number(value)
+  return `${amount >= 0 ? '+' : ''}${amount.toFixed(asPercent ? 2 : 4)}${asPercent ? '%p' : ''}`
+}
+
+function confidenceInterval(
+  lower: number | null | undefined,
+  upper: number | null | undefined,
+  asPercent = false,
+) {
+  if (lower == null || upper == null) return '표본 부족'
+  return `[${signedMetric(lower, asPercent)}, ${signedMetric(upper, asPercent)}]`
+}
+
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     credentials: 'include',
@@ -185,7 +200,7 @@ export function AdminPage() {
   const [predictionBatch, setPredictionBatch] = useState<PredictionGenerationBatchResponse | null>(null)
   const [singlePrediction, setSinglePrediction] = useState<PredictionGenerationResponse | null>(null)
 
-  const [shadowFrom, setShadowFrom] = useState(today)
+  const [shadowFrom, setShadowFrom] = useState(`${year}-03-01`)
   const [shadowTo, setShadowTo] = useState(`${year}-10-31`)
   const [shadow, setShadow] = useState<ShadowEvaluationResponse | null>(null)
   const [shadowLoading, setShadowLoading] = useState(false)
@@ -495,7 +510,18 @@ export function AdminPage() {
           <CardHeader><CardTitle className="flex items-center gap-2"><BarChart3 className="size-5" /> Shadow 성능</CardTitle><CardDescription>동일 Feature snapshot을 사용한 FINAL 경기만 공정하게 비교합니다.</CardDescription></CardHeader>
           <CardContent className="grid gap-4">
             <div className="flex flex-wrap items-end gap-2"><label className="grid gap-1 text-xs font-semibold">시작일<input type="date" className="h-9 rounded-md border bg-background px-3 text-sm font-normal" value={shadowFrom} onChange={(event) => setShadowFrom(event.target.value)} /></label><label className="grid gap-1 text-xs font-semibold">종료일<input type="date" className="h-9 rounded-md border bg-background px-3 text-sm font-normal" value={shadowTo} onChange={(event) => setShadowTo(event.target.value)} /></label><Button variant="outline" disabled={shadowLoading} onClick={() => void loadShadow()}>{shadowLoading ? '조회 중...' : 'Shadow 평가 조회'}</Button></div>
-            {!shadow || shadow.commonEvaluatedGameCount === 0 ? <div className="rounded-xl border border-dashed py-10 text-center"><Bot className="mx-auto mb-3 text-muted-foreground" /><p className="font-semibold">아직 Shadow 평가 데이터가 없습니다.</p><p className="mt-1 text-sm text-muted-foreground">향후 경기부터 자동으로 수집됩니다.</p></div> : <><p className="text-sm">공통 평가 경기 <strong className="font-mono">{shadow.commonEvaluatedGameCount}</strong></p><div className="overflow-x-auto rounded-xl border"><table className="w-full min-w-[560px] text-sm"><thead className="bg-muted/70"><tr><th className="px-4 py-3 text-left">지표</th><th className="px-4 py-3 text-right">baseline-v1</th><th className="px-4 py-3 text-right">logistic-v1</th></tr></thead><tbody>{[['Accuracy', percent(shadow.baseline.accuracy), percent(shadow.logistic.accuracy)], ['Log Loss', metric(shadow.baseline.logLoss), metric(shadow.logistic.logLoss)], ['Brier', metric(shadow.baseline.brierScore), metric(shadow.logistic.brierScore)], ['Macro F1', metric(shadow.baseline.macroF1), metric(shadow.logistic.macroF1)]].map(([label, baseline, logistic]) => <tr key={label} className="border-t"><td className="px-4 py-3 font-semibold">{label}</td><td className="px-4 py-3 text-right font-mono">{baseline}</td><td className="px-4 py-3 text-right font-mono">{logistic}</td></tr>)}</tbody></table></div><ResultMetrics values={[["logistic만 적중", shadow.logisticCorrectBaselineWrongCount], ["baseline만 적중", shadow.baselineCorrectLogisticWrongCount], ["둘 다 적중", shadow.bothCorrectCount], ["둘 다 실패", shadow.bothWrongCount]]} /><p className="text-xs text-muted-foreground">예측 일치율 {percent(shadow.predictedOutcomeAgreementRate)} · snapshot 불일치 {shadow.featureSnapshotMismatchCount} · artifact 불일치 {shadow.artifactMismatchCount}</p></>}
+            {!shadow ? <div className="rounded-xl border border-dashed py-10 text-center"><Bot className="mx-auto mb-3 text-muted-foreground" /><p className="font-semibold">기간을 선택해 운영 Shadow 평가를 조회하세요.</p></div> : shadow.commonEvaluatedGameCount === 0 ? <div className="rounded-xl border border-dashed py-10 text-center"><Bot className="mx-auto mb-3 text-muted-foreground" /><p className="font-semibold">공통 운영 FINAL 평가 경기 0건</p><p className="mt-1 text-sm text-muted-foreground">baseline FINAL {shadow.baselineEligibleFinalGameCount} · logistic FINAL {shadow.logisticEligibleFinalGameCount} · snapshot 불일치 {shadow.featureSnapshotMismatchCount} · 비운영 snapshot {shadow.nonOperationalSnapshotCount} · 경기 시작 시각 위반 {shadow.pregameCutoffViolationCount} · artifact 불일치 {shadow.artifactMismatchCount}</p></div> : <>
+              <div className="flex flex-wrap items-center gap-2 text-sm"><span>공통 운영 FINAL <strong className="font-mono">{shadow.commonEvaluatedGameCount}</strong>경기</span><Badge variant={shadow.sampleSizeAssessment.advisoryPromotionSampleSizeReached ? 'secondary' : 'outline'}>{shadow.sampleSizeAssessment.advisoryPromotionSampleSizeReached ? '표본 크기 gate 충족' : '표본 수집 중'}</Badge><span className="text-xs text-muted-foreground">HOME {shadow.sampleSizeAssessment.homeWinCount} · DRAW {shadow.sampleSizeAssessment.drawCount} · AWAY {shadow.sampleSizeAssessment.awayWinCount}</span></div>
+              <div className="overflow-x-auto rounded-xl border"><table className="w-full min-w-[760px] text-sm"><thead className="bg-muted/70"><tr><th className="px-4 py-3 text-left">지표</th><th className="px-4 py-3 text-right">baseline-v1</th><th className="px-4 py-3 text-right">logistic-v1</th><th className="px-4 py-3 text-right">logistic-baseline / paired 95% CI</th></tr></thead><tbody>{[
+                ['Accuracy', percent(shadow.baseline.accuracy), percent(shadow.logistic.accuracy), signedMetric(shadow.pairedMetrics.accuracy.logisticMinusBaseline, true), confidenceInterval(shadow.pairedMetrics.accuracy.bootstrap95Lower, shadow.pairedMetrics.accuracy.bootstrap95Upper, true)],
+                ['Log Loss', metric(shadow.baseline.logLoss), metric(shadow.logistic.logLoss), signedMetric(shadow.pairedMetrics.logLoss.logisticMinusBaseline), confidenceInterval(shadow.pairedMetrics.logLoss.bootstrap95Lower, shadow.pairedMetrics.logLoss.bootstrap95Upper)],
+                ['Brier', metric(shadow.baseline.brierScore), metric(shadow.logistic.brierScore), signedMetric(shadow.pairedMetrics.brierScore.logisticMinusBaseline), confidenceInterval(shadow.pairedMetrics.brierScore.bootstrap95Lower, shadow.pairedMetrics.brierScore.bootstrap95Upper)],
+              ].map(([label, baseline, logistic, difference, interval]) => <tr key={label} className="border-t"><td className="px-4 py-3 font-semibold">{label}</td><td className="px-4 py-3 text-right font-mono">{baseline}</td><td className="px-4 py-3 text-right font-mono">{logistic}</td><td className="px-4 py-3 text-right font-mono">{difference} · {interval}</td></tr>)}</tbody></table></div>
+              <div className="overflow-x-auto rounded-xl border"><table className="w-full min-w-[760px] text-sm"><thead className="bg-muted/70"><tr><th className="px-4 py-3 text-left">Class</th><th className="px-4 py-3 text-right">실제 발생률</th><th className="px-4 py-3 text-right">baseline 평균 / ECE</th><th className="px-4 py-3 text-right">logistic 평균 / ECE</th></tr></thead><tbody>{(['HOME_WIN', 'DRAW', 'AWAY_WIN'] as const).map((outcome) => <tr key={outcome} className="border-t"><td className="px-4 py-3 font-semibold">{outcome}</td><td className="px-4 py-3 text-right font-mono">{percent(shadow.actualOutcomeRates[outcome])}</td><td className="px-4 py-3 text-right font-mono">{percent(shadow.baseline.averageProbabilities[outcome])} / {percent(shadow.baseline.calibration[outcome].expectedCalibrationError)}</td><td className="px-4 py-3 text-right font-mono">{percent(shadow.logistic.averageProbabilities[outcome])} / {percent(shadow.logistic.calibration[outcome].expectedCalibrationError)}</td></tr>)}</tbody></table></div>
+              <ResultMetrics values={[["logistic만 적중", shadow.logisticCorrectBaselineWrongCount], ["baseline만 적중", shadow.baselineCorrectLogisticWrongCount], ["둘 다 적중", shadow.bothCorrectCount], ["둘 다 실패", shadow.bothWrongCount]]} />
+              <p className="text-xs text-muted-foreground">예측 일치율 {percent(shadow.predictedOutcomeAgreementRate)} · baseline FINAL {shadow.baselineEligibleFinalGameCount} · logistic FINAL {shadow.logisticEligibleFinalGameCount} · snapshot 불일치 {shadow.featureSnapshotMismatchCount} · 비운영 snapshot {shadow.nonOperationalSnapshotCount} · 경기 시작 시각 위반 {shadow.pregameCutoffViolationCount} · artifact 불일치 {shadow.artifactMismatchCount}</p>
+              <p className="text-xs text-muted-foreground">Artifact SHA-256 <span className="font-mono">{shadow.logisticArtifactSha256}</span> · 승격 검토 표본 gate까지 공통 경기 {shadow.sampleSizeAssessment.additionalCommonGamesNeeded}건, DRAW {shadow.sampleSizeAssessment.additionalDrawsNeeded}건 추가 필요</p>
+            </>}
           </CardContent>
         </Card>
 

@@ -100,16 +100,63 @@ export type ShadowModelMetrics = {
   brierScore: number
   macroF1: number
   averageMaxProbability: number
+  averageProbabilities: Record<PredictionOutcome, number | null>
+  calibration: Record<PredictionOutcome, {
+    outcome: PredictionOutcome
+    averageProbability: number | null
+    actualRate: number | null
+    expectedCalibrationError: number | null
+    bins: Array<{
+      range: string
+      sampleCount: number
+      averageProbability: number | null
+      actualRate: number | null
+      probabilityMinusActual: number | null
+    }>
+  }>
 }
 
 export type ShadowEvaluationResponse = {
+  evaluationType: 'OPERATIONAL_STORED_FINAL_ONLY'
   from: string
   to: string
+  baselineModelVersion: string
+  logisticModelVersion: string
+  logisticArtifactSha256: string
+  baselineEligibleFinalGameCount: number
+  logisticEligibleFinalGameCount: number
   commonEvaluatedGameCount: number
   featureSnapshotMismatchCount: number
+  nonOperationalSnapshotCount: number
+  pregameCutoffViolationCount: number
   artifactMismatchCount: number
+  actualOutcomeRates: Record<PredictionOutcome, number | null>
   baseline: ShadowModelMetrics
   logistic: ShadowModelMetrics
+  pairedMetrics: Record<'accuracy' | 'logLoss' | 'brierScore', {
+    metric: string
+    preferredDirection: 'HIGHER_IS_BETTER' | 'LOWER_IS_BETTER'
+    baseline: number | null
+    logistic: number | null
+    logisticMinusBaseline: number | null
+    bootstrap95Lower: number | null
+    bootstrap95Upper: number | null
+    bootstrapRepetitions: number
+  }>
+  sampleSizeAssessment: {
+    commonFinalGameCount: number
+    homeWinCount: number
+    drawCount: number
+    awayWinCount: number
+    bootstrapMinimumGameCount: number
+    bootstrapEligible: boolean
+    advisoryPromotionMinimumGameCount: number
+    advisoryPromotionMinimumPerOutcomeCount: number
+    advisoryPromotionSampleSizeReached: boolean
+    additionalCommonGamesNeeded: number
+    additionalDrawsNeeded: number
+    recommendation: string
+  }
   predictedOutcomeAgreementRate: number
   logisticCorrectBaselineWrongCount: number
   baselineCorrectLogisticWrongCount: number
