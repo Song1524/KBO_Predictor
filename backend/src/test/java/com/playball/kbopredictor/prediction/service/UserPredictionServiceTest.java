@@ -4,6 +4,7 @@ import com.playball.kbopredictor.game.entity.Game;
 import com.playball.kbopredictor.game.entity.GameStatus;
 import com.playball.kbopredictor.game.repository.GameRepository;
 import com.playball.kbopredictor.point.service.PointService;
+import com.playball.kbopredictor.point.service.UserPointLockService;
 import com.playball.kbopredictor.prediction.dto.UserPredictionRequest;
 import com.playball.kbopredictor.prediction.dto.UserPredictionResponse;
 import com.playball.kbopredictor.prediction.entity.PredictionOutcome;
@@ -53,6 +54,9 @@ class UserPredictionServiceTest {
     @Mock
     private PointService pointService;
 
+    @Mock
+    private UserPointLockService userPointLockService;
+
     private UserPredictionService service;
 
     @BeforeEach
@@ -64,6 +68,7 @@ class UserPredictionServiceTest {
                 gameRepository,
                 gameOddsService,
                 pointService,
+                userPointLockService,
                 clock
         );
     }
@@ -137,8 +142,8 @@ class UserPredictionServiceTest {
         User user = TestEntities.user(1L, 1_000);
         when(gameRepository.findByIdForUpdate(game.getId()))
                 .thenReturn(Optional.of(game));
-        when(userRepository.findByIdForUpdate(user.getId()))
-                .thenReturn(Optional.of(user));
+        when(userPointLockService.findByIdForUpdate(user.getId()))
+                .thenReturn(user);
         when(userPredictionRepository.existsByUserIdAndGameId(user.getId(), game.getId()))
                 .thenReturn(true);
 
@@ -203,8 +208,8 @@ class UserPredictionServiceTest {
         User user = TestEntities.user(1L, 1_000);
         when(gameRepository.findByIdForUpdate(game.getId()))
                 .thenReturn(Optional.of(game));
-        when(userRepository.findByIdForUpdate(user.getId()))
-                .thenReturn(Optional.of(user));
+        when(userPointLockService.findByIdForUpdate(user.getId()))
+                .thenReturn(user);
         when(userPredictionRepository.existsByUserIdAndGameId(user.getId(), game.getId()))
                 .thenReturn(false, true);
         when(userPredictionRepository.saveAndFlush(any(UserPrediction.class)))
@@ -245,8 +250,8 @@ class UserPredictionServiceTest {
         User user = TestEntities.user(1L, 1_000);
         when(gameRepository.findByIdForUpdate(game.getId()))
                 .thenReturn(Optional.of(game));
-        when(userRepository.findByIdForUpdate(user.getId()))
-                .thenReturn(Optional.of(user));
+        when(userPointLockService.findByIdForUpdate(user.getId()))
+                .thenReturn(user);
         when(userPredictionRepository.existsByUserIdAndGameId(user.getId(), game.getId()))
                 .thenReturn(false);
         when(userPredictionRepository.saveAndFlush(any(UserPrediction.class)))
@@ -326,8 +331,8 @@ class UserPredictionServiceTest {
     private void stubAvailablePrediction(Game game, User user) {
         when(gameRepository.findByIdForUpdate(game.getId()))
                 .thenReturn(Optional.of(game));
-        when(userRepository.findByIdForUpdate(user.getId()))
-                .thenReturn(Optional.of(user));
+        when(userPointLockService.findByIdForUpdate(user.getId()))
+                .thenReturn(user);
         when(userPredictionRepository.existsByUserIdAndGameId(user.getId(), game.getId()))
                 .thenReturn(false);
         lenient().when(userPredictionRepository.saveAndFlush(any(UserPrediction.class)))

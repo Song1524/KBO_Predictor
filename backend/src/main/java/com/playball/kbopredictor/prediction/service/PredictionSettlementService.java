@@ -6,10 +6,12 @@ import com.playball.kbopredictor.game.entity.GameResult;
 import com.playball.kbopredictor.game.entity.GameStatus;
 import com.playball.kbopredictor.game.repository.GameRepository;
 import com.playball.kbopredictor.point.service.PointService;
+import com.playball.kbopredictor.point.service.UserPointLockService;
 import com.playball.kbopredictor.prediction.dto.PredictionSettlementResponse;
 import com.playball.kbopredictor.prediction.entity.GameOdds;
 import com.playball.kbopredictor.prediction.entity.UserPrediction;
 import com.playball.kbopredictor.prediction.repository.UserPredictionRepository;
+import com.playball.kbopredictor.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,7 @@ public class PredictionSettlementService {
 
     private final GameRepository gameRepository;
     private final UserPredictionRepository userPredictionRepository;
+    private final UserPointLockService userPointLockService;
     private final GameOddsService gameOddsService;
     private final OddsCalculator oddsCalculator;
     private final PointService pointService;
@@ -60,8 +63,9 @@ public class PredictionSettlementService {
         for (UserPrediction prediction : predictions) {
             if (cancelled) {
                 int refundPoint = prediction.getPointAmount();
+                User lockedUser = findUserForUpdate(prediction);
                 pointService.refundCancelledGame(
-                        prediction.getUser(),
+                        lockedUser,
                         prediction
                 );
                 prediction.refund(settledAt);
@@ -72,8 +76,9 @@ public class PredictionSettlementService {
                         prediction.getPointAmount(),
                         finalOdds.getFinalOdds(prediction.getSelectedOutcome())
                 );
+                User lockedUser = findUserForUpdate(prediction);
                 pointService.rewardPrediction(
-                        prediction.getUser(),
+                        lockedUser,
                         prediction,
                         payout
                 );
@@ -104,6 +109,12 @@ public class PredictionSettlementService {
                 incorrectCount,
                 refundedCount,
                 totalPaidPoints
+        );
+    }
+
+    private User findUserForUpdate(UserPrediction prediction) {
+        return userPointLockService.findByIdForUpdate(
+                prediction.getUser().getId()
         );
     }
 

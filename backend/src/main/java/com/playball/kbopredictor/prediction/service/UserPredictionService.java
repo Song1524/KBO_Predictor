@@ -4,6 +4,7 @@ import com.playball.kbopredictor.game.entity.Game;
 import com.playball.kbopredictor.game.entity.GameStatus;
 import com.playball.kbopredictor.game.repository.GameRepository;
 import com.playball.kbopredictor.point.service.PointService;
+import com.playball.kbopredictor.point.service.UserPointLockService;
 import com.playball.kbopredictor.prediction.dto.UserPredictionRequest;
 import com.playball.kbopredictor.prediction.dto.UserPredictionResponse;
 import com.playball.kbopredictor.prediction.entity.UserPrediction;
@@ -34,6 +35,7 @@ public class UserPredictionService {
     private final GameRepository gameRepository;
     private final GameOddsService gameOddsService;
     private final PointService pointService;
+    private final UserPointLockService userPointLockService;
     private final Clock clock;
 
     @Transactional
@@ -49,11 +51,7 @@ public class UserPredictionService {
                         "경기를 찾을 수 없습니다."
                 ));
 
-        User user = userRepository.findByIdForUpdate(authenticatedUserId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "사용자를 찾을 수 없습니다."
-                ));
+        User user = userPointLockService.findByIdForUpdate(authenticatedUserId);
 
         validateDuplicatePrediction(user.getId(), game.getId());
         validateGameStatus(game);

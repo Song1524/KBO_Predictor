@@ -5,6 +5,7 @@ import com.playball.kbopredictor.game.entity.GameResult;
 import com.playball.kbopredictor.game.entity.GameStatus;
 import com.playball.kbopredictor.game.repository.GameRepository;
 import com.playball.kbopredictor.point.service.PointService;
+import com.playball.kbopredictor.point.service.UserPointLockService;
 import com.playball.kbopredictor.prediction.dto.PredictionSettlementResponse;
 import com.playball.kbopredictor.prediction.entity.GameOdds;
 import com.playball.kbopredictor.prediction.entity.PredictionOutcome;
@@ -53,6 +54,9 @@ class PredictionSettlementServiceTest {
     private UserPredictionRepository userPredictionRepository;
 
     @Mock
+    private UserPointLockService userPointLockService;
+
+    @Mock
     private GameOddsService gameOddsService;
 
     @Mock
@@ -67,6 +71,7 @@ class PredictionSettlementServiceTest {
         service = new PredictionSettlementService(
                 gameRepository,
                 userPredictionRepository,
+                userPointLockService,
                 gameOddsService,
                 oddsCalculator,
                 pointService,
@@ -108,6 +113,7 @@ class PredictionSettlementServiceTest {
         when(gameOddsService.finalizeForSettlement(game)).thenReturn(finalOdds);
         when(userPredictionRepository.findByGameIdAndSettledFalse(game.getId()))
                 .thenReturn(List.of(prediction));
+        lockUser(user);
 
         PredictionSettlementResponse response = service.settleGame(game.getId());
 
@@ -134,6 +140,7 @@ class PredictionSettlementServiceTest {
                 LocalTime.of(18, 30)
         );
         User user = TestEntities.user(1L, 900);
+        User lockedUser = TestEntities.user(1L, 950);
         UserPrediction prediction = UserPrediction.create(
                 user,
                 game,
@@ -147,6 +154,7 @@ class PredictionSettlementServiceTest {
                 .thenReturn(finalizedOdds(game));
         when(userPredictionRepository.findByGameIdAndSettledFalse(game.getId()))
                 .thenReturn(List.of(prediction));
+        lockUser(lockedUser);
 
         PredictionSettlementResponse response = service.settleGame(game.getId());
 
@@ -154,12 +162,13 @@ class PredictionSettlementServiceTest {
         assertThat(response.refundedCount()).isEqualTo(1);
         assertThat(response.correctCount()).isZero();
         assertThat(response.totalPaidPoints()).isEqualTo(100);
-        assertThat(user.getPoint()).isEqualTo(1_000);
+        assertThat(user.getPoint()).isEqualTo(900);
+        assertThat(lockedUser.getPoint()).isEqualTo(1_050);
         assertThat(prediction.getSettlementStatus())
                 .isEqualTo(PredictionSettlementStatus.REFUNDED);
         assertThat(prediction.getIsCorrect()).isNull();
         assertThat(prediction.getSettledAt()).isEqualTo(NOW);
-        verify(pointService).refundCancelledGame(user, prediction);
+        verify(pointService).refundCancelledGame(lockedUser, prediction);
     }
 
     @Test
@@ -179,6 +188,7 @@ class PredictionSettlementServiceTest {
         when(gameOddsService.finalizeForSettlement(game)).thenReturn(finalOdds);
         when(userPredictionRepository.findByGameIdAndSettledFalse(game.getId()))
                 .thenReturn(List.of(prediction), List.of());
+        lockUser(user);
 
         PredictionSettlementResponse first = service.settleGame(game.getId());
         int pointAfterFirstSettlement = user.getPoint();
@@ -289,6 +299,7 @@ class PredictionSettlementServiceTest {
                 .thenReturn(finalizedOdds(game));
         when(userPredictionRepository.findByGameIdAndSettledFalse(game.getId()))
                 .thenReturn(List.of(prediction));
+        lockUser(user);
 
         PredictionSettlementResponse response = service.settleGame(game.getId());
 
@@ -319,6 +330,7 @@ class PredictionSettlementServiceTest {
                 .thenReturn(finalizedOdds(game));
         when(userPredictionRepository.findByGameIdAndSettledFalse(game.getId()))
                 .thenReturn(List.of(prediction), List.of());
+        lockUser(user);
 
         service.settleGame(game.getId());
         int pointAfterFirstRefund = user.getPoint();
@@ -339,6 +351,11 @@ class PredictionSettlementServiceTest {
         );
         TestEntities.setResult(game, result);
         return game;
+    }
+
+    private void lockUser(User user) {
+        when(userPointLockService.findByIdForUpdate(user.getId()))
+                .thenReturn(user);
     }
 
     private GameOdds finalizedOdds(Game game) {
