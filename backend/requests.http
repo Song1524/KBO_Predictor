@@ -45,8 +45,8 @@ GET http://localhost:8080/api/rankings?type=MONTHLY_PROFIT&limit=20
 ### PLAYBALL 주간 예측 수익 랭킹
 GET http://localhost:8080/api/rankings?type=WEEKLY_PROFIT&limit=20
 
-### 경기 예측 정산 또는 취소 경기 환불
-POST http://localhost:8080/api/games/1/settlement
+### 경기 예측 정산 또는 취소 경기 환불 (ADMIN 세션 필요)
+POST http://localhost:8080/api/admin/games/1/settlement
 
 ### 로그아웃
 POST http://localhost:8080/api/auth/logout

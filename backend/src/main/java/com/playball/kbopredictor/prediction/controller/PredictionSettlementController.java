@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/games")
+@RequestMapping("/api/admin/games")
 public class PredictionSettlementController {
 
     private final PredictionSettlementService predictionSettlementService;
