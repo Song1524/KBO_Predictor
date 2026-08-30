@@ -91,6 +91,7 @@ type GameApiResponse = {
 type DashboardGame = {
   id: number
   gameDate: string
+  predictionCloseAt: string | null
   awayTeamId: number | null
   homeTeamId: number | null
   time: string
@@ -229,6 +230,47 @@ function formatPredictionCloseAt(value: string | null) {
   return value.replace('T', ' ').slice(0, 16)
 }
 
+function parsePredictionCloseAt(value: string | null) {
+  if (!value) return null
+  const hasOffset = /(Z|[+-]\d{2}:\d{2})$/i.test(value)
+  const timestamp = Date.parse(hasOffset ? value : `${value}+09:00`)
+  return Number.isFinite(timestamp) ? timestamp : null
+}
+
+function usePredictionDeadlineReached(value: string | null) {
+  const [deadlineReached, setDeadlineReached] = useState(() => {
+    const deadline = parsePredictionCloseAt(value)
+    return deadline != null && Date.now() >= deadline
+  })
+
+  useEffect(() => {
+    const deadline = parsePredictionCloseAt(value)
+    if (deadline == null) {
+      setDeadlineReached(false)
+      return
+    }
+
+    let timer: number | undefined
+    const updateDeadline = () => {
+      const remaining = deadline - Date.now()
+      setDeadlineReached(remaining <= 0)
+      if (remaining > 0) {
+        timer = window.setTimeout(
+          updateDeadline,
+          Math.min(remaining, 2_147_483_647),
+        )
+      }
+    }
+
+    updateDeadline()
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer)
+    }
+  }, [value])
+
+  return deadlineReached
+}
+
 function getOutcomeOdds(
   game: DashboardGame,
   outcome: PredictionOutcome,
@@ -276,6 +318,11 @@ function GameCard({
   const [predictionMessage, setPredictionMessage] = useState('')
   const [hasPredictionError, setHasPredictionError] = useState(false)
   const confirmedPrediction = existingPrediction ?? submittedPrediction
+  const predictionCloseAt =
+    game.userOdds?.predictionCloseAt ?? game.predictionCloseAt
+  const deadlineReached = usePredictionDeadlineReached(predictionCloseAt)
+  const bettingOpen =
+    game.userOdds?.bettingOpen === true && !deadlineReached
 
   useEffect(() => {
     if (existingPrediction) {
@@ -330,7 +377,7 @@ function GameCard({
   const canSubmit =
     pick != null &&
     user != null &&
-    game.userOdds?.bettingOpen === true &&
+    bettingOpen &&
     !confirmedPrediction &&
     !isSubmitting &&
     pointAmountIsValid &&
@@ -480,7 +527,7 @@ function GameCard({
                 key={outcome}
                 className="h-auto min-h-24 flex-col gap-1 px-2 py-3"
                 disabled={
-                  !game.userOdds?.bettingOpen ||
+                  !bettingOpen ||
                   !data ||
                   isSubmitting ||
                   confirmedPrediction !== null ||
@@ -507,6 +554,10 @@ function GameCard({
             투표 정보가 없습니다.
           </p>
         )}
+
+        <p className="text-center text-xs text-muted-foreground">
+          예측 마감 {formatPredictionCloseAt(predictionCloseAt)}
+        </p>
 
         {pick && !confirmedPrediction && user && (
           <div className="grid gap-4 rounded-xl border bg-muted/30 p-4">
@@ -583,7 +634,6 @@ function GameCard({
               <div><dt className="text-muted-foreground">현재 보유 포인트</dt><dd className="mt-0.5 font-mono font-semibold">{user.point.toLocaleString()}P</dd></div>
               <div><dt className="text-muted-foreground">참여 후 예상 잔액</dt><dd className="mt-0.5 font-mono font-semibold">{pointAmountIsValid && hasEnoughPoints ? (user.point - pointAmount).toLocaleString() : '-'}P</dd></div>
               <div><dt className="text-muted-foreground">현재 배당</dt><dd className="mt-0.5 font-mono font-semibold">{formatOdds(selectedOdds?.odds ?? null)}</dd></div>
-              <div><dt className="text-muted-foreground">예측 마감</dt><dd className="mt-0.5 font-semibold">{formatPredictionCloseAt(game.userOdds?.predictionCloseAt ?? null)}</dd></div>
             </dl>
 
             {!pointAmountIsValid && (
@@ -627,9 +677,13 @@ function GameCard({
           </div>
         )}
 
-        {game.userOdds && !game.userOdds.bettingOpen && (
+        {game.userOdds && !bettingOpen && (
           <p className="text-center text-xs text-muted-foreground">
-            {game.userOdds.finalized ? '예측 마감 · 최종 배당' : '예측 참여 불가'}
+            {game.userOdds.finalized
+              ? '예측 마감 · 최종 배당'
+              : deadlineReached
+                ? '예측 마감 · 최종 배당 확정 중'
+                : '예측 참여 불가'}
           </p>
         )}
 
@@ -731,6 +785,7 @@ export function KboDashboard() {
           return {
             id: game.id,
             gameDate: game.gameDate,
+            predictionCloseAt: game.predictionCloseAt,
             awayTeamId: game.awayTeamId,
             homeTeamId: game.homeTeamId,
             time: normalizeText(game.gameTime?.slice(0, 5) ?? null, '-'),

@@ -17,6 +17,8 @@ import java.util.Objects;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Game {
 
+    public static final int PREDICTION_CLOSE_MINUTES_BEFORE_START = 10;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -78,7 +80,7 @@ public class Game {
             return predictionCloseAt;
         }
         if (gameDate != null && gameTime != null) {
-            return LocalDateTime.of(gameDate, gameTime).minusMinutes(30);
+            return calculatePredictionCloseAt(gameDate, gameTime);
         }
         return null;
     }
@@ -154,7 +156,7 @@ public class Game {
         if (this.predictionCloseAt == null || scheduleChanged) {
             this.predictionCloseAt = gameTime == null
                     ? null
-                    : LocalDateTime.of(gameDate, gameTime).minusMinutes(30);
+                    : calculatePredictionCloseAt(gameDate, gameTime);
         }
         this.cancelReason = cancelReason;
         this.updatedAt = now;
@@ -201,5 +203,13 @@ public class Game {
             );
         }
         this.updatedAt = Objects.requireNonNull(now, "now");
+    }
+
+    private static LocalDateTime calculatePredictionCloseAt(
+            LocalDate gameDate,
+            LocalTime gameTime
+    ) {
+        return LocalDateTime.of(gameDate, gameTime)
+                .minusMinutes(PREDICTION_CLOSE_MINUTES_BEFORE_START);
     }
 }

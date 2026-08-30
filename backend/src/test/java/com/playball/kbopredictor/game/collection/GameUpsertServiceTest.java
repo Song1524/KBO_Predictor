@@ -107,7 +107,7 @@ class GameUpsertServiceTest {
         Game inserted = captor.getValue();
         assertThat(inserted.getExternalGameId()).isEqualTo("20260812LGOB0");
         assertThat(inserted.getPredictionCloseAt())
-                .isEqualTo(LocalDateTime.of(GAME_DATE, GAME_TIME).minusMinutes(30));
+                .isEqualTo(LocalDateTime.of(GAME_DATE, GAME_TIME).minusMinutes(10));
 
         LocalDateTime preservedCloseAt = GAME_DATE.atTime(17, 45);
         ReflectionTestUtils.setField(
@@ -185,7 +185,7 @@ class GameUpsertServiceTest {
         assertThat(existing.getGameTime()).isEqualTo(changedTime);
         assertThat(existing.getStadium()).isEqualTo("대전");
         assertThat(existing.getPredictionCloseAt())
-                .isEqualTo(GAME_DATE.atTime(changedTime).minusMinutes(30));
+                .isEqualTo(GAME_DATE.atTime(changedTime).minusMinutes(10));
         verify(gameRepository).saveAndFlush(existing);
     }
 
@@ -292,7 +292,7 @@ class GameUpsertServiceTest {
         assertThat(existing.getGameTime()).isEqualTo(GAME_TIME);
         assertThat(existing.getStadium()).isEqualTo("잠실");
         assertThat(existing.getPredictionCloseAt())
-                .isEqualTo(GAME_DATE.atTime(GAME_TIME).minusMinutes(30));
+                .isEqualTo(GAME_DATE.atTime(GAME_TIME).minusMinutes(10));
     }
 
     @Test

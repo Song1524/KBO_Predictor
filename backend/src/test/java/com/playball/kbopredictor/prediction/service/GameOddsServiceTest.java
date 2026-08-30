@@ -100,12 +100,12 @@ class GameOddsServiceTest {
     }
 
     @Test
-    void oddsAreFinalizedAfterDeadlineAndCannotChange() {
+    void oddsAreFinalizedExactlyAtDeadlineAndCannotChange() {
         Game game = TestEntities.game(
                 20L,
                 GameStatus.SCHEDULED,
                 NOW.toLocalDate(),
-                NOW.toLocalTime().plusMinutes(20)
+                NOW.toLocalTime().plusMinutes(10)
         );
         GameOdds odds = GameOdds.create(game, NOW.minusHours(1));
         odds.addBet(PredictionOutcome.HOME_WIN, 100, NOW.minusHours(1));
@@ -131,7 +131,7 @@ class GameOddsServiceTest {
                 30L,
                 GameStatus.SCHEDULED,
                 NOW.toLocalDate(),
-                NOW.toLocalTime().plusHours(1)
+                NOW.toLocalTime().plusMinutes(10).plusSeconds(1)
         );
         GameOdds odds = GameOdds.create(game, NOW.minusHours(1));
         odds.addBet(PredictionOutcome.HOME_WIN, 100, NOW.minusHours(1));
@@ -147,7 +147,7 @@ class GameOddsServiceTest {
                 40L,
                 GameStatus.SCHEDULED,
                 NOW.toLocalDate(),
-                NOW.toLocalTime().plusMinutes(30)
+                NOW.toLocalTime().plusMinutes(10)
         );
         GameOdds odds = GameOdds.create(game, NOW.minusHours(1));
         odds.addBet(PredictionOutcome.HOME_WIN, 60, NOW.minusMinutes(10));

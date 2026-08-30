@@ -298,24 +298,57 @@ class UserPredictionServiceTest {
     }
 
     @Test
-    void blocksParticipationFromThirtyMinutesBeforeGameStart() {
+    void allowsParticipationTenMinutesAndOneSecondBeforeGameStart() {
         Game game = TestEntities.game(
                 10L,
                 GameStatus.SCHEDULED,
                 NOW.toLocalDate(),
-                NOW.toLocalTime().plusMinutes(20)
+                NOW.toLocalTime().plusMinutes(10).plusSeconds(1)
+        );
+        User user = TestEntities.user(1L, 1_000);
+        stubAvailablePrediction(game, user);
+
+        UserPredictionResponse response = service.createPrediction(
+                user.getId(),
+                new UserPredictionRequest(game.getId(), PredictionOutcome.AWAY_WIN, 100)
+        );
+
+        assertThat(response.selectedOutcome()).isEqualTo(PredictionOutcome.AWAY_WIN);
+        assertThat(user.getPoint()).isEqualTo(900);
+        verify(gameOddsService).placeBet(
+                game,
+                PredictionOutcome.AWAY_WIN,
+                100
+        );
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {600, 540, -60})
+    void blocksParticipationAtOrAfterTenMinuteDeadline(
+            long secondsUntilGameStart
+    ) {
+        Game game = TestEntities.game(
+                10L,
+                GameStatus.SCHEDULED,
+                NOW.toLocalDate(),
+                NOW.toLocalTime().plusSeconds(secondsUntilGameStart)
         );
         User user = TestEntities.user(1L, 1_000);
         stubAvailablePrediction(game, user);
 
         assertThatThrownBy(() -> service.createPrediction(
                 user.getId(),
-                new UserPredictionRequest(game.getId(), PredictionOutcome.AWAY_WIN, 100)
+                new UserPredictionRequest(
+                        game.getId(),
+                        PredictionOutcome.AWAY_WIN,
+                        100
+                )
         )).isInstanceOfSatisfying(ResponseStatusException.class, exception ->
-                assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST)
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(HttpStatus.BAD_REQUEST)
         );
 
-        verifyNoInteractions(gameOddsService);
+        verifyNoInteractions(gameOddsService, pointService);
         assertThat(user.getPoint()).isEqualTo(1_000);
     }
 
