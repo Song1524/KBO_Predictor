@@ -61,6 +61,10 @@ public class UserPrediction {
     @Column(name = "settled_at")
     private LocalDateTime settledAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "settlement_id")
+    private GameSettlement settlement;
+
     public static UserPrediction create(
             User user,
             Game game,
@@ -78,26 +82,49 @@ public class UserPrediction {
         prediction.createdAt = LocalDateTime.now();
         prediction.updatedAt = LocalDateTime.now();
         prediction.settledAt = null;
+        prediction.settlement = null;
 
         return prediction;
     }
 
     public void settleWon(LocalDateTime settledAt) {
-        settle(PredictionSettlementStatus.WON, true, settledAt);
+        settle(PredictionSettlementStatus.WON, true, settledAt, null);
+    }
+
+    public void settleWon(
+            LocalDateTime settledAt,
+            GameSettlement settlement
+    ) {
+        settle(PredictionSettlementStatus.WON, true, settledAt, settlement);
     }
 
     public void settleLost(LocalDateTime settledAt) {
-        settle(PredictionSettlementStatus.LOST, false, settledAt);
+        settle(PredictionSettlementStatus.LOST, false, settledAt, null);
+    }
+
+    public void settleLost(
+            LocalDateTime settledAt,
+            GameSettlement settlement
+    ) {
+        settle(PredictionSettlementStatus.LOST, false, settledAt, settlement);
     }
 
     public void refund(LocalDateTime settledAt) {
-        settle(PredictionSettlementStatus.REFUNDED, null, settledAt);
+        settle(PredictionSettlementStatus.REFUNDED, null, settledAt, null);
+    }
+
+    public void refund(
+            LocalDateTime settledAt,
+            GameSettlement settlement
+    ) {
+        settle(PredictionSettlementStatus.REFUNDED, null, settledAt, settlement);
     }
 
     private void settle(
             PredictionSettlementStatus status,
             Boolean correct,
-            LocalDateTime settledAt
+            LocalDateTime settledAt,
+            GameSettlement settlement
     ) {
         if (Boolean.TRUE.equals(this.settled) || this.settledAt != null) {
             throw new IllegalStateException("Prediction is already settled");
@@ -107,6 +134,19 @@ public class UserPrediction {
         this.settled = true;
         this.settlementStatus = status;
         this.settledAt = Objects.requireNonNull(settledAt, "settledAt");
+        this.settlement = settlement;
         this.updatedAt = settledAt;
+    }
+
+    public void rollbackSettlement(LocalDateTime rolledBackAt) {
+        if (!Boolean.TRUE.equals(settled) || settledAt == null) {
+            throw new IllegalStateException("Prediction is not settled");
+        }
+        this.isCorrect = null;
+        this.settled = false;
+        this.settlementStatus = PredictionSettlementStatus.PENDING;
+        this.settledAt = null;
+        this.settlement = null;
+        this.updatedAt = Objects.requireNonNull(rolledBackAt, "rolledBackAt");
     }
 }

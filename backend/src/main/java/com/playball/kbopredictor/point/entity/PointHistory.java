@@ -1,6 +1,7 @@
 package com.playball.kbopredictor.point.entity;
 
 import com.playball.kbopredictor.game.entity.Game;
+import com.playball.kbopredictor.prediction.entity.GameSettlement;
 import com.playball.kbopredictor.prediction.entity.UserPrediction;
 import com.playball.kbopredictor.user.entity.User;
 import jakarta.persistence.*;
@@ -13,10 +14,20 @@ import java.time.LocalDateTime;
 @Entity
 @Table(
         name = "point_histories",
-        uniqueConstraints = @UniqueConstraint(
-                name = "uk_point_histories_prediction_type",
-                columnNames = {"user_prediction_id", "type"}
-        )
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_point_histories_prediction_type_revision",
+                        columnNames = {
+                                "user_prediction_id",
+                                "type",
+                                "settlement_revision"
+                        }
+                ),
+                @UniqueConstraint(
+                        name = "uk_point_histories_reversal_of",
+                        columnNames = "reversal_of_id"
+                )
+        }
 )
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -37,6 +48,17 @@ public class PointHistory {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_prediction_id")
     private UserPrediction userPrediction;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "settlement_id")
+    private GameSettlement settlement;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reversal_of_id", unique = true)
+    private PointHistory reversalOf;
+
+    @Column(name = "settlement_revision", nullable = false)
+    private int settlementRevision;
 
     @Column(name = "point_change", nullable = false)
     private int pointChange;
@@ -64,10 +86,41 @@ public class PointHistory {
             String description,
             LocalDateTime createdAt
     ) {
+        return create(
+                user,
+                game,
+                userPrediction,
+                null,
+                null,
+                pointChange,
+                balanceAfter,
+                type,
+                description,
+                createdAt
+        );
+    }
+
+    public static PointHistory create(
+            User user,
+            Game game,
+            UserPrediction userPrediction,
+            GameSettlement settlement,
+            PointHistory reversalOf,
+            int pointChange,
+            int balanceAfter,
+            PointHistoryType type,
+            String description,
+            LocalDateTime createdAt
+    ) {
         PointHistory history = new PointHistory();
         history.user = user;
         history.game = game;
         history.userPrediction = userPrediction;
+        history.settlement = settlement;
+        history.reversalOf = reversalOf;
+        history.settlementRevision = settlement == null
+                ? 0
+                : settlement.getRevision();
         history.pointChange = pointChange;
         history.balanceAfter = balanceAfter;
         history.type = type;

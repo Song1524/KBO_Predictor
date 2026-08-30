@@ -159,4 +159,47 @@ public class Game {
         this.cancelReason = cancelReason;
         this.updatedAt = now;
     }
+
+    public void correctTerminalResult(
+            GameStatus correctedStatus,
+            Integer correctedHomeScore,
+            Integer correctedAwayScore,
+            String correctedCancelReason,
+            LocalDateTime now
+    ) {
+        if (correctedStatus == GameStatus.FINISHED) {
+            if (correctedHomeScore == null || correctedAwayScore == null
+                    || correctedHomeScore < 0 || correctedAwayScore < 0) {
+                throw new IllegalArgumentException(
+                        "Finished game scores must be non-negative"
+                );
+            }
+            this.status = GameStatus.FINISHED;
+            this.homeScore = correctedHomeScore;
+            this.awayScore = correctedAwayScore;
+            if (correctedHomeScore > correctedAwayScore) {
+                this.result = GameResult.HOME_WIN;
+                this.winnerTeam = homeTeam;
+            } else if (correctedHomeScore < correctedAwayScore) {
+                this.result = GameResult.AWAY_WIN;
+                this.winnerTeam = awayTeam;
+            } else {
+                this.result = GameResult.DRAW;
+                this.winnerTeam = null;
+            }
+            this.cancelReason = null;
+        } else if (correctedStatus == GameStatus.CANCELLED) {
+            this.status = GameStatus.CANCELLED;
+            this.homeScore = null;
+            this.awayScore = null;
+            this.result = null;
+            this.winnerTeam = null;
+            this.cancelReason = correctedCancelReason;
+        } else {
+            throw new IllegalArgumentException(
+                    "Only finished or cancelled results can be corrected"
+            );
+        }
+        this.updatedAt = Objects.requireNonNull(now, "now");
+    }
 }

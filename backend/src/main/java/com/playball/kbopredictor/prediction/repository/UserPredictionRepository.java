@@ -42,6 +42,18 @@ public interface UserPredictionRepository
             Long gameId
     );
 
+    List<UserPrediction> findByGameIdAndSettledFalseOrderByUserIdAscIdAsc(
+            Long gameId
+    );
+
+    List<UserPrediction> findBySettlementIdAndSettledTrueOrderByUserIdAscIdAsc(
+            Long settlementId
+    );
+
+    long countByGameIdAndSettledTrue(Long gameId);
+
+    long countByGameIdAndSettledFalse(Long gameId);
+
     boolean existsByGameIdAndSettledFalse(Long gameId);
 
     boolean existsByGameIdAndSettledTrue(Long gameId);

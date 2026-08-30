@@ -4,6 +4,7 @@ import com.playball.kbopredictor.game.entity.GameResult;
 
 public record PredictionSettlementResponse(
         Long gameId,
+        Integer settlementRevision,
         GameResult result,
         boolean cancelled,
         Long winnerTeamId,

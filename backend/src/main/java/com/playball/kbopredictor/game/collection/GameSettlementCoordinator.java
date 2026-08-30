@@ -2,6 +2,8 @@ package com.playball.kbopredictor.game.collection;
 
 import com.playball.kbopredictor.game.entity.GameStatus;
 import com.playball.kbopredictor.prediction.dto.PredictionSettlementResponse;
+import com.playball.kbopredictor.prediction.entity.GameSettlementState;
+import com.playball.kbopredictor.prediction.repository.GameSettlementRepository;
 import com.playball.kbopredictor.prediction.repository.UserPredictionRepository;
 import com.playball.kbopredictor.prediction.service.PredictionSettlementService;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +16,7 @@ import org.springframework.stereotype.Service;
 public class GameSettlementCoordinator {
 
     private final UserPredictionRepository userPredictionRepository;
+    private final GameSettlementRepository gameSettlementRepository;
     private final PredictionSettlementService predictionSettlementService;
 
     public GameSettlementTriggerResult settleIfNecessary(
@@ -31,6 +34,20 @@ public class GameSettlementCoordinator {
                     upsertResult.currentStatus(),
                     upsertResult.previousResult(),
                     upsertResult.currentResult()
+            );
+            return GameSettlementTriggerResult.CORRECTION_REQUIRES_REVIEW;
+        }
+
+        boolean recoveryPending = gameId != null
+                && gameSettlementRepository
+                .findFirstByGameIdOrderByRevisionDesc(gameId)
+                .filter(settlement -> settlement.getState()
+                        == GameSettlementState.ROLLED_BACK)
+                .isPresent();
+        if (recoveryPending) {
+            log.warn(
+                    "관리자 rollback 이후 수동 재정산 대기 중 - 자동 정산 생략: gameId={}",
+                    gameId
             );
             return GameSettlementTriggerResult.CORRECTION_REQUIRES_REVIEW;
         }

@@ -5,6 +5,7 @@ import com.playball.kbopredictor.point.entity.PointHistory;
 import com.playball.kbopredictor.point.entity.PointHistoryType;
 import com.playball.kbopredictor.point.repository.PointHistoryRepository;
 import com.playball.kbopredictor.prediction.entity.PredictionOutcome;
+import com.playball.kbopredictor.prediction.entity.GameSettlement;
 import com.playball.kbopredictor.prediction.entity.UserPrediction;
 import com.playball.kbopredictor.user.entity.User;
 import com.playball.kbopredictor.user.repository.UserRepository;
@@ -84,9 +85,44 @@ public class PointService {
                 user,
                 null,
                 null,
+                null,
+                null,
                 points,
                 PointHistoryType.SIGNUP_BONUS,
                 "회원가입 축하 포인트"
+        );
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void reverseSettlement(
+            User user,
+            UserPrediction prediction,
+            PointHistory originalHistory
+    ) {
+        if (originalHistory.getPointChange() <= 0) {
+            throw new IllegalArgumentException(
+                    "Only positive settlement histories can be reversed"
+            );
+        }
+        PointHistoryType reversalType = switch (originalHistory.getType()) {
+            case PREDICTION_REWARD ->
+                    PointHistoryType.PREDICTION_REWARD_ROLLBACK;
+            case GAME_CANCEL_REFUND ->
+                    PointHistoryType.GAME_CANCEL_REFUND_ROLLBACK;
+            default -> throw new IllegalArgumentException(
+                    "Unsupported settlement history type: "
+                            + originalHistory.getType()
+            );
+        };
+        applyChange(
+                user,
+                prediction.getGame(),
+                prediction,
+                originalHistory.getSettlement(),
+                originalHistory,
+                Math.negateExact(originalHistory.getPointChange()),
+                reversalType,
+                originalHistory.getDescription() + " 정산 원복"
         );
     }
 
@@ -116,6 +152,8 @@ public class PointService {
                 user,
                 prediction == null ? null : prediction.getGame(),
                 prediction,
+                prediction == null ? null : prediction.getSettlement(),
+                null,
                 pointChange,
                 type,
                 description
@@ -126,6 +164,8 @@ public class PointService {
             User user,
             com.playball.kbopredictor.game.entity.Game game,
             UserPrediction prediction,
+            GameSettlement settlement,
+            PointHistory reversalOf,
             int pointChange,
             PointHistoryType type,
             String description
@@ -156,6 +196,8 @@ public class PointService {
                 user,
                 game,
                 prediction,
+                settlement,
+                reversalOf,
                 pointChange,
                 user.getPoint(),
                 type,

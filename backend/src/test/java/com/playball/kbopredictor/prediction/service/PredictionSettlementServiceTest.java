@@ -11,6 +11,7 @@ import com.playball.kbopredictor.prediction.entity.GameOdds;
 import com.playball.kbopredictor.prediction.entity.PredictionOutcome;
 import com.playball.kbopredictor.prediction.entity.PredictionSettlementStatus;
 import com.playball.kbopredictor.prediction.entity.UserPrediction;
+import com.playball.kbopredictor.prediction.repository.GameSettlementRepository;
 import com.playball.kbopredictor.prediction.repository.UserPredictionRepository;
 import com.playball.kbopredictor.user.entity.User;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +55,9 @@ class PredictionSettlementServiceTest {
     private UserPredictionRepository userPredictionRepository;
 
     @Mock
+    private GameSettlementRepository gameSettlementRepository;
+
+    @Mock
     private UserPointLockService userPointLockService;
 
     @Mock
@@ -71,12 +75,16 @@ class PredictionSettlementServiceTest {
         service = new PredictionSettlementService(
                 gameRepository,
                 userPredictionRepository,
+                gameSettlementRepository,
                 userPointLockService,
                 gameOddsService,
                 oddsCalculator,
                 pointService,
                 CLOCK
         );
+
+        lenient().when(gameSettlementRepository.saveAndFlush(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         lenient().doAnswer(invocation -> {
             User user = invocation.getArgument(0);
@@ -111,7 +119,7 @@ class PredictionSettlementServiceTest {
         when(gameRepository.findByIdForUpdate(game.getId()))
                 .thenReturn(Optional.of(game));
         when(gameOddsService.finalizeForSettlement(game)).thenReturn(finalOdds);
-        when(userPredictionRepository.findByGameIdAndSettledFalse(game.getId()))
+        when(userPredictionRepository.findByGameIdAndSettledFalseOrderByUserIdAscIdAsc(game.getId()))
                 .thenReturn(List.of(prediction));
         lockUser(user);
 
@@ -152,7 +160,7 @@ class PredictionSettlementServiceTest {
                 .thenReturn(Optional.of(game));
         when(gameOddsService.finalizeForSettlement(game))
                 .thenReturn(finalizedOdds(game));
-        when(userPredictionRepository.findByGameIdAndSettledFalse(game.getId()))
+        when(userPredictionRepository.findByGameIdAndSettledFalseOrderByUserIdAscIdAsc(game.getId()))
                 .thenReturn(List.of(prediction));
         lockUser(lockedUser);
 
@@ -186,7 +194,7 @@ class PredictionSettlementServiceTest {
         when(gameRepository.findByIdForUpdate(game.getId()))
                 .thenReturn(Optional.of(game));
         when(gameOddsService.finalizeForSettlement(game)).thenReturn(finalOdds);
-        when(userPredictionRepository.findByGameIdAndSettledFalse(game.getId()))
+        when(userPredictionRepository.findByGameIdAndSettledFalseOrderByUserIdAscIdAsc(game.getId()))
                 .thenReturn(List.of(prediction), List.of());
         lockUser(user);
 
@@ -220,7 +228,7 @@ class PredictionSettlementServiceTest {
                 .thenReturn(Optional.of(game));
         when(gameOddsService.finalizeForSettlement(game))
                 .thenReturn(finalizedOdds(game));
-        when(userPredictionRepository.findByGameIdAndSettledFalse(game.getId()))
+        when(userPredictionRepository.findByGameIdAndSettledFalseOrderByUserIdAscIdAsc(game.getId()))
                 .thenReturn(List.of(prediction));
 
         PredictionSettlementResponse response = service.settleGame(game.getId());
@@ -297,7 +305,7 @@ class PredictionSettlementServiceTest {
                 .thenReturn(Optional.of(game));
         when(gameOddsService.finalizeForSettlement(game))
                 .thenReturn(finalizedOdds(game));
-        when(userPredictionRepository.findByGameIdAndSettledFalse(game.getId()))
+        when(userPredictionRepository.findByGameIdAndSettledFalseOrderByUserIdAscIdAsc(game.getId()))
                 .thenReturn(List.of(prediction));
         lockUser(user);
 
@@ -328,7 +336,7 @@ class PredictionSettlementServiceTest {
                 .thenReturn(Optional.of(game));
         when(gameOddsService.finalizeForSettlement(game))
                 .thenReturn(finalizedOdds(game));
-        when(userPredictionRepository.findByGameIdAndSettledFalse(game.getId()))
+        when(userPredictionRepository.findByGameIdAndSettledFalseOrderByUserIdAscIdAsc(game.getId()))
                 .thenReturn(List.of(prediction), List.of());
         lockUser(user);
 

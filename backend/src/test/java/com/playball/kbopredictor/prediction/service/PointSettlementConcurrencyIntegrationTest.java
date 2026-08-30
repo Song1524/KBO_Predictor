@@ -12,6 +12,7 @@ import com.playball.kbopredictor.prediction.entity.GameOdds;
 import com.playball.kbopredictor.prediction.entity.PredictionOutcome;
 import com.playball.kbopredictor.prediction.entity.UserPrediction;
 import com.playball.kbopredictor.prediction.repository.GameOddsRepository;
+import com.playball.kbopredictor.prediction.repository.GameSettlementRepository;
 import com.playball.kbopredictor.prediction.repository.UserPredictionRepository;
 import com.playball.kbopredictor.team.entity.Team;
 import com.playball.kbopredictor.team.repository.TeamRepository;
@@ -83,6 +84,9 @@ class PointSettlementConcurrencyIntegrationTest {
     private UserPredictionRepository userPredictionRepository;
 
     @Autowired
+    private GameSettlementRepository gameSettlementRepository;
+
+    @Autowired
     private PointHistoryRepository pointHistoryRepository;
 
     @Autowired
@@ -93,6 +97,7 @@ class PointSettlementConcurrencyIntegrationTest {
         transactionTemplate.executeWithoutResult(status -> {
             pointHistoryRepository.deleteAllInBatch();
             userPredictionRepository.deleteAllInBatch();
+            gameSettlementRepository.deleteAllInBatch();
             gameOddsRepository.deleteAllInBatch();
             gameRepository.deleteAllInBatch();
             userRepository.deleteAllInBatch();

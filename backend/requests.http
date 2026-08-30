@@ -48,6 +48,33 @@ GET http://localhost:8080/api/rankings?type=WEEKLY_PROFIT&limit=20
 ### 경기 예측 정산 또는 취소 경기 환불 (ADMIN 세션 필요)
 POST http://localhost:8080/api/admin/games/1/settlement
 
+### 경기 정산/복구 상태 확인 (ADMIN 세션 필요)
+GET http://localhost:8080/api/admin/games/1/settlement/status
+
+### 정산 회차 rollback (ADMIN 세션 필요)
+POST http://localhost:8080/api/admin/games/1/settlement/rollback
+Content-Type: application/json
+
+{
+  "settlementRevision": 1,
+  "reason": "KBO 공식 기록 정정"
+}
+
+### rollback 이후 경기 결과 정정 (ADMIN 세션 필요)
+PUT http://localhost:8080/api/admin/games/1/result
+Content-Type: application/json
+
+{
+  "settlementRevision": 1,
+  "status": "FINISHED",
+  "homeScore": 2,
+  "awayScore": 5,
+  "reason": "KBO 공식 기록 정정"
+}
+
+### 결과 정정 이후 재정산 (ADMIN 세션 및 rollback 회차 필요)
+POST http://localhost:8080/api/admin/games/1/settlement?rollbackRevision=1
+
 ### 로그아웃
 POST http://localhost:8080/api/auth/logout
 

@@ -16,4 +16,12 @@ public interface PointHistoryRepository
             Long userPredictionId,
             PointHistoryType type
     );
+
+    Optional<PointHistory> findByUserPredictionIdAndSettlementIdAndType(
+            Long userPredictionId,
+            Long settlementId,
+            PointHistoryType type
+    );
+
+    boolean existsByReversalOfId(Long pointHistoryId);
 }

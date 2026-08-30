@@ -3,6 +3,9 @@ package com.playball.kbopredictor.game.collection;
 import com.playball.kbopredictor.game.entity.GameResult;
 import com.playball.kbopredictor.game.entity.GameStatus;
 import com.playball.kbopredictor.prediction.dto.PredictionSettlementResponse;
+import com.playball.kbopredictor.prediction.entity.GameSettlement;
+import com.playball.kbopredictor.prediction.entity.GameSettlementState;
+import com.playball.kbopredictor.prediction.repository.GameSettlementRepository;
 import com.playball.kbopredictor.prediction.repository.UserPredictionRepository;
 import com.playball.kbopredictor.prediction.service.PredictionSettlementService;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,6 +13,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.never;
@@ -23,6 +28,9 @@ class GameSettlementCoordinatorTest {
     private UserPredictionRepository userPredictionRepository;
 
     @Mock
+    private GameSettlementRepository gameSettlementRepository;
+
+    @Mock
     private PredictionSettlementService predictionSettlementService;
 
     private GameSettlementCoordinator coordinator;
@@ -31,6 +39,7 @@ class GameSettlementCoordinatorTest {
     void setUp() {
         coordinator = new GameSettlementCoordinator(
                 userPredictionRepository,
+                gameSettlementRepository,
                 predictionSettlementService
         );
     }
@@ -210,6 +219,29 @@ class GameSettlementCoordinatorTest {
         verify(predictionSettlementService, never()).settleGame(1L);
     }
 
+    @Test
+    void rolledBackSettlementWaitsForAdminResettlement() {
+        GameUpsertResult result = result(
+                GameStatus.FINISHED,
+                GameStatus.FINISHED,
+                GameResult.AWAY_WIN,
+                GameResult.AWAY_WIN,
+                false
+        );
+        GameSettlement settlement = org.mockito.Mockito.mock(
+                GameSettlement.class
+        );
+        when(settlement.getState()).thenReturn(GameSettlementState.ROLLED_BACK);
+        when(gameSettlementRepository.findFirstByGameIdOrderByRevisionDesc(1L))
+                .thenReturn(Optional.of(settlement));
+
+        assertThat(coordinator.settleIfNecessary(result))
+                .isEqualTo(
+                        GameSettlementTriggerResult.CORRECTION_REQUIRES_REVIEW
+                );
+        verify(predictionSettlementService, never()).settleGame(1L);
+    }
+
     private GameUpsertResult result(
             GameStatus previousStatus,
             GameStatus currentStatus,
@@ -232,6 +264,7 @@ class GameSettlementCoordinatorTest {
     private PredictionSettlementResponse settlement(boolean cancelled) {
         return new PredictionSettlementResponse(
                 1L,
+                1,
                 cancelled ? null : GameResult.HOME_WIN,
                 cancelled,
                 cancelled ? null : 10L,
