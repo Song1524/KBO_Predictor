@@ -11,6 +11,8 @@ import com.playball.kbopredictor.prediction.dto.GameResultCorrectionRequest;
 import com.playball.kbopredictor.prediction.dto.PredictionSettlementResponse;
 import com.playball.kbopredictor.prediction.dto.PredictionSettlementRollbackResponse;
 import com.playball.kbopredictor.prediction.entity.GameOdds;
+import com.playball.kbopredictor.prediction.entity.GameSettlement;
+import com.playball.kbopredictor.prediction.entity.GameSettlementSource;
 import com.playball.kbopredictor.prediction.entity.GameSettlementState;
 import com.playball.kbopredictor.prediction.entity.PredictionOutcome;
 import com.playball.kbopredictor.prediction.entity.PredictionSettlementStatus;
@@ -18,6 +20,12 @@ import com.playball.kbopredictor.prediction.entity.UserPrediction;
 import com.playball.kbopredictor.prediction.repository.GameOddsRepository;
 import com.playball.kbopredictor.prediction.repository.GameSettlementRepository;
 import com.playball.kbopredictor.prediction.repository.UserPredictionRepository;
+import com.playball.kbopredictor.ranking.repository.RankingQueryRepository;
+import com.playball.kbopredictor.ranking.repository.RankingQueryRow;
+import com.playball.kbopredictor.ranking.RankingType;
+import com.playball.kbopredictor.ranking.dto.RankingEntryResponse;
+import com.playball.kbopredictor.ranking.dto.RankingResponse;
+import com.playball.kbopredictor.ranking.service.RankingService;
 import com.playball.kbopredictor.team.entity.Team;
 import com.playball.kbopredictor.team.repository.TeamRepository;
 import com.playball.kbopredictor.user.entity.User;
@@ -66,6 +74,10 @@ class SettlementRecoveryIntegrationTest {
     private static final Long ADMIN_USER_ID = 9_000L;
     private static final int POST_BET_POINT = 900;
     private static final int BET_POINT = 100;
+    private static final LocalDateTime PERIOD_START =
+            LocalDateTime.of(2020, 1, 1, 0, 0);
+    private static final LocalDateTime PERIOD_END =
+            LocalDateTime.of(2030, 1, 1, 0, 0);
 
     @Autowired
     private PredictionSettlementService predictionSettlementService;
@@ -85,6 +97,10 @@ class SettlementRecoveryIntegrationTest {
     private UserPredictionRepository userPredictionRepository;
     @Autowired
     private PointHistoryRepository pointHistoryRepository;
+    @Autowired
+    private RankingQueryRepository rankingQueryRepository;
+    @Autowired
+    private RankingService rankingService;
     @Autowired
     private TransactionTemplate transactionTemplate;
 
@@ -113,6 +129,13 @@ class SettlementRecoveryIntegrationTest {
         assertThat(first.settlementRevision()).isEqualTo(1);
         assertThat(currentPoint(fixture.firstUserId())).isEqualTo(1_100);
         assertThat(currentPoint(fixture.secondUserId())).isEqualTo(900);
+        assertRanking(
+                periodRanking(fixture.firstUserId()),
+                100,
+                1,
+                1,
+                1
+        );
 
         PredictionSettlementRollbackResponse rollback = recoveryService.rollback(
                 fixture.gameId(), 1, ADMIN_USER_ID, "원정팀 승리 결과 정정"
@@ -122,6 +145,14 @@ class SettlementRecoveryIntegrationTest {
         assertThat(currentPoint(fixture.firstUserId())).isEqualTo(900);
         assertThat(currentPoint(fixture.secondUserId())).isEqualTo(900);
         assertPredictionsPending(fixture.gameId());
+        assertThat(findPeriodRanking(fixture.firstUserId())).isEmpty();
+        assertRanking(
+                totalRanking(fixture.firstUserId()),
+                900,
+                1,
+                0,
+                0
+        );
 
         recoveryService.correctResult(
                 fixture.gameId(), ADMIN_USER_ID,
@@ -134,6 +165,21 @@ class SettlementRecoveryIntegrationTest {
         assertThat(second.result()).isEqualTo(GameResult.AWAY_WIN);
         assertThat(currentPoint(fixture.firstUserId())).isEqualTo(900);
         assertThat(currentPoint(fixture.secondUserId())).isEqualTo(1_100);
+        assertRanking(
+                periodRanking(fixture.firstUserId()),
+                -100,
+                1,
+                0,
+                1
+        );
+        assertRanking(
+                periodRanking(fixture.secondUserId()),
+                100,
+                1,
+                1,
+                1
+        );
+        assertRankingApisUseCurrentSettlement(fixture);
         assertHistories(
                 fixture.firstUserId(),
                 tuple(PointHistoryType.PREDICTION_REWARD, 200, 1_100),
@@ -164,10 +210,18 @@ class SettlementRecoveryIntegrationTest {
 
         predictionSettlementService.settleGame(fixture.gameId(), ADMIN_USER_ID);
         assertThat(currentPoint(fixture.firstUserId())).isEqualTo(1_200);
+        assertRanking(
+                periodRanking(fixture.firstUserId()),
+                200,
+                1,
+                1,
+                1
+        );
         recoveryService.rollback(
                 fixture.gameId(), 1, ADMIN_USER_ID, "무승부 오수집"
         );
         assertThat(currentPoint(fixture.firstUserId())).isEqualTo(900);
+        assertThat(findPeriodRanking(fixture.firstUserId())).isEmpty();
 
         recoveryService.correctResult(
                 fixture.gameId(), ADMIN_USER_ID,
@@ -179,6 +233,20 @@ class SettlementRecoveryIntegrationTest {
 
         assertThat(currentPoint(fixture.firstUserId())).isEqualTo(900);
         assertThat(currentPoint(fixture.secondUserId())).isEqualTo(1_100);
+        assertRanking(
+                periodRanking(fixture.firstUserId()),
+                -100,
+                1,
+                0,
+                1
+        );
+        assertRanking(
+                periodRanking(fixture.secondUserId()),
+                100,
+                1,
+                1,
+                1
+        );
         assertHistories(
                 fixture.firstUserId(),
                 tuple(PointHistoryType.PREDICTION_REWARD, 300, 1_200),
@@ -200,12 +268,15 @@ class SettlementRecoveryIntegrationTest {
         predictionSettlementService.settleGame(fixture.gameId(), ADMIN_USER_ID);
         assertThat(currentPoint(fixture.firstUserId())).isEqualTo(1_000);
         assertThat(currentPoint(fixture.secondUserId())).isEqualTo(1_000);
+        assertThat(findPeriodRanking(fixture.firstUserId())).isEmpty();
+        assertThat(findPeriodRanking(fixture.secondUserId())).isEmpty();
 
         recoveryService.rollback(
                 fixture.gameId(), 1, ADMIN_USER_ID, "취소 상태 오수집"
         );
         assertThat(currentPoint(fixture.firstUserId())).isEqualTo(900);
         assertThat(currentPoint(fixture.secondUserId())).isEqualTo(900);
+        assertThat(findPeriodRanking(fixture.firstUserId())).isEmpty();
 
         recoveryService.correctResult(
                 fixture.gameId(), ADMIN_USER_ID,
@@ -217,6 +288,20 @@ class SettlementRecoveryIntegrationTest {
 
         assertThat(currentPoint(fixture.firstUserId())).isEqualTo(1_100);
         assertThat(currentPoint(fixture.secondUserId())).isEqualTo(900);
+        assertRanking(
+                periodRanking(fixture.firstUserId()),
+                100,
+                1,
+                1,
+                1
+        );
+        assertRanking(
+                periodRanking(fixture.secondUserId()),
+                -100,
+                1,
+                0,
+                1
+        );
         assertHistories(
                 fixture.firstUserId(),
                 tuple(PointHistoryType.GAME_CANCEL_REFUND, 100, 1_000),
@@ -420,6 +505,20 @@ class SettlementRecoveryIntegrationTest {
                 .findByGameIdAndRevision(fixture.gameId(), 3)
                 .orElseThrow()
                 .getState()).isEqualTo(GameSettlementState.SETTLED);
+        assertRanking(
+                periodRanking(fixture.firstUserId()),
+                100,
+                1,
+                1,
+                1
+        );
+        assertRanking(
+                periodRanking(fixture.secondUserId()),
+                -100,
+                1,
+                0,
+                1
+        );
         assertHistories(
                 fixture.firstUserId(),
                 tuple(PointHistoryType.PREDICTION_REWARD, 200, 1_100),
@@ -431,6 +530,85 @@ class SettlementRecoveryIntegrationTest {
                 tuple(PointHistoryType.PREDICTION_REWARD, 200, 1_100),
                 tuple(PointHistoryType.PREDICTION_REWARD_ROLLBACK, -200, 900)
         );
+    }
+
+    @Test
+    void rankingUsesOnlyCurrentRewardWhenWinIsResettledWithDifferentPayout() {
+        RecoveryFixture fixture = createFixture(
+                GameStatus.FINISHED, GameResult.HOME_WIN, 5, 2,
+                PredictionOutcome.HOME_WIN, PredictionOutcome.AWAY_WIN
+        );
+        changeFinalHomeOdds(fixture.gameId(), "5.00");
+        predictionSettlementService.settleGame(fixture.gameId(), ADMIN_USER_ID);
+        assertRanking(
+                periodRanking(fixture.firstUserId()),
+                400,
+                1,
+                1,
+                1
+        );
+
+        recoveryService.rollback(
+                fixture.gameId(), 1, ADMIN_USER_ID, "지급액 재정정"
+        );
+        recoveryService.correctResult(
+                fixture.gameId(), ADMIN_USER_ID,
+                correctionRequest(1, GameStatus.FINISHED, 6, 2)
+        );
+        changeFinalHomeOdds(fixture.gameId(), "3.00");
+        predictionSettlementService.settleGame(
+                fixture.gameId(), ADMIN_USER_ID, 1
+        );
+
+        assertThat(currentPoint(fixture.firstUserId())).isEqualTo(1_200);
+        assertRanking(
+                totalRanking(fixture.firstUserId()),
+                1_200,
+                1,
+                1,
+                1
+        );
+        assertRanking(
+                periodRanking(fixture.firstUserId()),
+                200,
+                1,
+                1,
+                1
+        );
+        assertHistories(
+                fixture.firstUserId(),
+                tuple(PointHistoryType.PREDICTION_REWARD, 500, 1_400),
+                tuple(PointHistoryType.PREDICTION_REWARD_ROLLBACK, -500, 900),
+                tuple(PointHistoryType.PREDICTION_REWARD, 300, 1_200)
+        );
+    }
+
+    @Test
+    void legacySettlementRemainsIncludedInRanking() {
+        RecoveryFixture fixture = createFixture(
+                GameStatus.FINISHED, GameResult.HOME_WIN, 5, 2,
+                PredictionOutcome.HOME_WIN, PredictionOutcome.AWAY_WIN
+        );
+        createLegacySettlement(fixture.gameId());
+
+        assertRanking(
+                totalRanking(fixture.firstUserId()),
+                1_100,
+                1,
+                1,
+                1
+        );
+        assertRanking(
+                periodRanking(fixture.firstUserId()),
+                100,
+                1,
+                1,
+                1
+        );
+        assertThat(gameSettlementRepository
+                .findByGameIdAndRevision(fixture.gameId(), 1)
+                .orElseThrow()
+                .getSource()).isEqualTo(GameSettlementSource.LEGACY);
     }
 
     @Test
@@ -584,6 +762,72 @@ class SettlementRecoveryIntegrationTest {
         gameOddsRepository.saveAndFlush(odds);
     }
 
+    private void changeFinalHomeOdds(Long gameId, String oddsValue) {
+        transactionTemplate.executeWithoutResult(status -> {
+            GameOdds odds = gameOddsRepository.findByGameId(gameId)
+                    .orElseThrow();
+            ReflectionTestUtils.setField(
+                    odds,
+                    "finalHomeWinOdds",
+                    new BigDecimal(oddsValue)
+            );
+        });
+    }
+
+    private void createLegacySettlement(Long gameId) {
+        transactionTemplate.executeWithoutResult(status -> {
+            Game game = gameRepository.findById(gameId).orElseThrow();
+            LocalDateTime settledAt = LocalDateTime.now();
+            GameSettlement settlement = gameSettlementRepository.saveAndFlush(
+                    GameSettlement.start(
+                            game,
+                            1,
+                            GameSettlementSource.LEGACY,
+                            null,
+                            settledAt
+                    )
+            );
+            List<UserPrediction> predictions = userPredictionRepository
+                    .findByGameIdAndSettledFalseOrderByUserIdAscIdAsc(gameId);
+            int correctCount = 0;
+            int incorrectCount = 0;
+            long paidPoints = 0;
+            for (UserPrediction prediction : predictions) {
+                if (prediction.getSelectedOutcome().matches(game.getResult())) {
+                    prediction.settleWon(settledAt, settlement);
+                    User user = userRepository.findById(
+                            prediction.getUser().getId()
+                    ).orElseThrow();
+                    user.changePoint(200);
+                    pointHistoryRepository.save(PointHistory.create(
+                            user,
+                            game,
+                            prediction,
+                            settlement,
+                            null,
+                            200,
+                            user.getPoint(),
+                            PointHistoryType.PREDICTION_REWARD,
+                            "LEGACY 정산 지급",
+                            settledAt
+                    ));
+                    correctCount++;
+                    paidPoints += 200;
+                } else {
+                    prediction.settleLost(settledAt, settlement);
+                    incorrectCount++;
+                }
+            }
+            settlement.complete(
+                    predictions.size(),
+                    correctCount,
+                    incorrectCount,
+                    0,
+                    paidPoints
+            );
+        });
+    }
+
     private GameResultCorrectionRequest correctionRequest(
             int revision,
             GameStatus status,
@@ -612,6 +856,81 @@ class SettlementRecoveryIntegrationTest {
     private int currentPoint(Long userId) {
         return userRepository.findById(userId)
                 .map(User::getPoint)
+                .orElseThrow();
+    }
+
+    private RankingQueryRow totalRanking(Long userId) {
+        return rankingQueryRepository.findTotalByUserId(userId).orElseThrow();
+    }
+
+    private java.util.Optional<RankingQueryRow> findPeriodRanking(Long userId) {
+        return rankingQueryRepository.findPeriodByUserId(
+                PERIOD_START,
+                PERIOD_END,
+                userId
+        );
+    }
+
+    private RankingQueryRow periodRanking(Long userId) {
+        return findPeriodRanking(userId).orElseThrow();
+    }
+
+    private void assertRanking(
+            RankingQueryRow row,
+            long score,
+            long predictionCount,
+            long correctCount,
+            long gradedCount
+    ) {
+        assertThat(row.score()).isEqualTo(score);
+        assertThat(row.predictionCount()).isEqualTo(predictionCount);
+        assertThat(row.correctCount()).isEqualTo(correctCount);
+        assertThat(row.gradedPredictionCount()).isEqualTo(gradedCount);
+    }
+
+    private void assertRankingApisUseCurrentSettlement(
+            RecoveryFixture fixture
+    ) {
+        RankingEntryResponse total = rankingEntry(
+                rankingService.getRankings(
+                        RankingType.TOTAL_POINT,
+                        20,
+                        null
+                ),
+                fixture.secondUserId()
+        );
+        RankingEntryResponse monthly = rankingEntry(
+                rankingService.getRankings(
+                        RankingType.MONTHLY_PROFIT,
+                        20,
+                        null
+                ),
+                fixture.secondUserId()
+        );
+        RankingEntryResponse weekly = rankingEntry(
+                rankingService.getRankings(
+                        RankingType.WEEKLY_PROFIT,
+                        20,
+                        null
+                ),
+                fixture.secondUserId()
+        );
+
+        assertThat(total.currentPoint()).isEqualTo(1_100);
+        assertThat(total.correctCount()).isEqualTo(1);
+        assertThat(monthly.periodProfit()).isEqualTo(100);
+        assertThat(monthly.correctCount()).isEqualTo(1);
+        assertThat(weekly.periodProfit()).isEqualTo(100);
+        assertThat(weekly.correctCount()).isEqualTo(1);
+    }
+
+    private RankingEntryResponse rankingEntry(
+            RankingResponse response,
+            Long userId
+    ) {
+        return response.rankings().stream()
+                .filter(entry -> entry.userId() == userId)
+                .findFirst()
                 .orElseThrow();
     }
 

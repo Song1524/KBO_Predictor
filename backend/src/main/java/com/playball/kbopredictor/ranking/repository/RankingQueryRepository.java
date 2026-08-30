@@ -25,16 +25,21 @@ public class RankingQueryRepository {
                     COUNT(up.id) AS prediction_count,
                     SUM(CASE
                         WHEN up.settled = TRUE
+                         AND settlement.id IS NOT NULL
                          AND up.settlement_status = 'WON' THEN 1
                         ELSE 0
                     END) AS correct_count,
                     SUM(CASE
                         WHEN up.settled = TRUE
+                         AND settlement.id IS NOT NULL
                          AND up.settlement_status IN ('WON', 'LOST') THEN 1
                         ELSE 0
                     END) AS graded_prediction_count
                 FROM users u
                 LEFT JOIN user_predictions up ON up.user_id = u.id
+                LEFT JOIN game_settlements settlement
+                  ON settlement.id = up.settlement_id
+                 AND settlement.state = 'SETTLED'
                 WHERE u.status = 'ACTIVE'
                   AND u.nickname IS NOT NULL
                   AND u.nickname <> ''
@@ -81,8 +86,13 @@ public class RankingQueryRepository {
                  AND up.settlement_status IN ('WON', 'LOST', 'REFUNDED')
                  AND up.settled_at >= :periodStart
                  AND up.settled_at < :periodEndExclusive
+                JOIN game_settlements settlement
+                  ON settlement.id = up.settlement_id
+                 AND settlement.state = 'SETTLED'
                 LEFT JOIN point_histories reward
                   ON reward.user_prediction_id = up.id
+                 AND reward.settlement_id = settlement.id
+                 AND reward.settlement_revision = settlement.revision
                  AND reward.type = 'PREDICTION_REWARD'
                 WHERE u.status = 'ACTIVE'
                   AND u.nickname IS NOT NULL

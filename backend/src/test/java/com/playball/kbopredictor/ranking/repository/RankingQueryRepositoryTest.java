@@ -47,6 +47,7 @@ class RankingQueryRepositoryTest {
         assertThat(normalize(sql.getValue())).contains(
                 "ORDER BY current_point DESC, correct_count DESC, user_id ASC",
                 "LEFT JOIN user_predictions",
+                "LEFT JOIN game_settlements settlement ON settlement.id = up.settlement_id AND settlement.state = 'SETTLED'",
                 "LIMIT :limit"
         );
     }
@@ -81,10 +82,13 @@ class RankingQueryRepositoryTest {
                 "up.settlement_status IN ('WON', 'LOST', 'REFUNDED')",
                 "up.settled_at >= :periodStart",
                 "up.settled_at < :periodEndExclusive",
+                "JOIN game_settlements settlement ON settlement.id = up.settlement_id AND settlement.state = 'SETTLED'",
                 "WHEN up.settlement_status = 'WON' THEN reward.point_change - up.point_amount",
                 "WHEN up.settlement_status = 'LOST' THEN -up.point_amount",
                 "WHEN up.settlement_status = 'REFUNDED' THEN 0",
                 "reward.type = 'PREDICTION_REWARD'",
+                "reward.settlement_id = settlement.id",
+                "reward.settlement_revision = settlement.revision",
                 "HAVING SUM(CASE WHEN up.settlement_status IN ('WON', 'LOST') THEN 1 ELSE 0 END) > 0",
                 "ORDER BY period_profit DESC, correct_count DESC, prediction_count DESC, user_id ASC"
         ).doesNotContain("SIGNUP_BONUS", "up.updated_at");
