@@ -60,9 +60,13 @@ type GameOddsApiResponse = {
 
 type SystemPredictionApiResponse = {
   gameId: number
+  predictedWinnerTeamId: number | null
+  predictedWinnerTeamName: string | null
+  predictedOutcome: PredictionOutcome | null
   homeWinProbability: number | null
   drawProbability: number | null
   awayWinProbability: number | null
+  reason: string | null
 }
 
 type GameApiResponse = {
@@ -101,9 +105,7 @@ type DashboardGame = {
   status: GameApiResponse['status']
   away: string
   home: string
-  awayPct: number | null
-  drawPct: number | null
-  homePct: number | null
+  aiPrediction: SystemPredictionApiResponse | null
   userOdds: GameOddsApiResponse | null
   awayScore: number | null
   homeScore: number | null
@@ -200,6 +202,34 @@ function getOutcomeLabel(
     case 'AWAY_WIN':
       return `${game.away} 승`
   }
+}
+
+function getAiPredictionLabel(game: DashboardGame) {
+  const prediction = game.aiPrediction
+  if (!prediction?.predictedOutcome) return null
+
+  switch (prediction.predictedOutcome) {
+    case 'HOME_WIN':
+      return `${normalizeNullableText(prediction.predictedWinnerTeamName) ?? game.home} 승리`
+    case 'DRAW':
+      return '무승부'
+    case 'AWAY_WIN':
+      return `${normalizeNullableText(prediction.predictedWinnerTeamName) ?? game.away} 승리`
+  }
+}
+
+function getPredictionReasons(reason: string | null) {
+  if (!reason) return []
+
+  return reason
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 3)
+}
+
+function probabilityBarWidth(value: number) {
+  return `${Math.min(100, Math.max(0, value))}%`
 }
 
 function formatProbability(value: number | null) {
@@ -310,6 +340,133 @@ function TeamMark({ teamName }: { teamName: string }) {
   return (
     <div className="flex size-12 items-center justify-center rounded-full bg-primary font-mono text-sm font-black text-primary-foreground">
       {getTeamMark(teamName)}
+    </div>
+  )
+}
+
+function AiPredictionPanel({ game }: { game: DashboardGame }) {
+  const prediction = game.aiPrediction
+  if (!prediction) {
+    return (
+      <div className="rounded-xl border bg-muted/40 px-4 py-5 text-center">
+        <Sparkles className="mx-auto size-4 text-muted-foreground" />
+        <p className="mt-2 text-sm font-bold">AI 분석 준비 중</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          시스템 예측이 생성되면 이곳에 표시됩니다.
+        </p>
+      </div>
+    )
+  }
+
+  const awayProbability = toFiniteNumber(prediction.awayWinProbability)
+  const drawProbability = toFiniteNumber(prediction.drawProbability)
+  const homeProbability = toFiniteNumber(prediction.homeWinProbability)
+  const probabilities =
+    awayProbability != null &&
+    drawProbability != null &&
+    homeProbability != null
+      ? [
+          {
+            outcome: 'AWAY_WIN' as const,
+            label: '원정',
+            value: awayProbability,
+            barClassName: 'bg-accent',
+          },
+          {
+            outcome: 'DRAW' as const,
+            label: '무승부',
+            value: drawProbability,
+            barClassName: 'bg-muted-foreground/50',
+          },
+          {
+            outcome: 'HOME_WIN' as const,
+            label: '홈',
+            value: homeProbability,
+            barClassName: 'bg-primary',
+          },
+        ]
+      : null
+  const predictionLabel = getAiPredictionLabel(game)
+  const reasons = getPredictionReasons(prediction.reason)
+
+  return (
+    <div className="rounded-xl border bg-muted/40 p-3">
+      <div className="min-w-0">
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <Sparkles className="size-3.5" />
+          AI 경기 분석
+        </p>
+        <p className="mt-1 line-clamp-2 text-sm font-black">
+          {predictionLabel
+            ? `AI 예상: ${predictionLabel}`
+            : 'AI 예상 결과 확인 중'}
+        </p>
+      </div>
+
+      {probabilities ? (
+        <>
+          <div
+            className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-border"
+            aria-label={probabilities
+              .map(({ label, value }) => `${label} ${formatProbability(value)}`)
+              .join(', ')}
+            role="img"
+          >
+            {probabilities.map(({ outcome, value, barClassName }) => (
+              <span
+                key={outcome}
+                className={`${barClassName} ${prediction.predictedOutcome === outcome ? 'opacity-100' : 'opacity-50'}`}
+                style={{ width: probabilityBarWidth(value) }}
+              />
+            ))}
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-1.5 text-center">
+            {probabilities.map(({ outcome, label, value }) => {
+              const predicted = prediction.predictedOutcome === outcome
+              return (
+                <div
+                  key={outcome}
+                  className={`min-w-0 rounded-md border px-1.5 py-1.5 ${predicted ? 'border-primary/30 bg-background shadow-sm' : 'border-transparent'}`}
+                >
+                  <p className="truncate text-[10px] text-muted-foreground">
+                    {label}
+                  </p>
+                  <p className={`font-mono text-xs ${predicted ? 'font-black text-primary' : 'font-semibold'}`}>
+                    {formatProbability(value)}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      ) : (
+        <p className="mt-3 rounded-md bg-background/70 py-2 text-center text-xs text-muted-foreground">
+          AI 확률 데이터 준비 중
+        </p>
+      )}
+
+      {reasons.length > 0 ? (
+        <div className="mt-3 border-t pt-3">
+          <p className="text-[11px] font-bold text-muted-foreground">
+            예측 근거
+          </p>
+          <ul className="mt-1.5 grid gap-1.5">
+            {reasons.map((reason, index) => (
+              <li
+                key={`${index}-${reason}`}
+                className="flex gap-1.5 text-[11px] leading-relaxed text-muted-foreground"
+              >
+                <span aria-hidden="true" className="text-primary">•</span>
+                <span className="line-clamp-2">{reason}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="mt-3 border-t pt-3 text-[11px] text-muted-foreground">
+          제공된 세부 예측 근거가 없습니다.
+        </p>
+      )}
     </div>
   )
 }
@@ -526,16 +683,7 @@ function GameCard({
           </div>
         </div>
 
-        <div className="rounded-lg bg-muted/60 p-3">
-          <p className="mb-2 text-center text-xs font-semibold text-muted-foreground">
-            데이터 예측 확률
-          </p>
-          <div className="grid grid-cols-3 gap-2 text-center text-xs">
-            <div><strong>{formatProbability(game.awayPct)}</strong><p>{game.away} 승</p></div>
-            <div><strong>{formatProbability(game.drawPct)}</strong><p>무승부</p></div>
-            <div><strong>{formatProbability(game.homePct)}</strong><p>{game.home} 승</p></div>
-          </div>
-        </div>
+        <AiPredictionPanel game={game} />
 
         {outcomeOptions ? (
           <div className="grid grid-cols-3 gap-2">
@@ -810,16 +958,6 @@ export function KboDashboard() {
 
       const dashboardGames = (gameData as GameApiResponse[]).map(
         (game): DashboardGame => {
-          const aiHome = toFiniteNumber(
-            game.aiPrediction?.homeWinProbability,
-          )
-          const aiDraw = toFiniteNumber(
-            game.aiPrediction?.drawProbability,
-          )
-          const aiAway = toFiniteNumber(
-            game.aiPrediction?.awayWinProbability,
-          )
-
           return {
             id: game.id,
             gameDate: game.gameDate,
@@ -831,9 +969,7 @@ export function KboDashboard() {
             status: game.status,
             away: normalizeText(game.awayTeamName, '정보 없음'),
             home: normalizeText(game.homeTeamName, '정보 없음'),
-            awayPct: aiAway,
-            drawPct: aiDraw,
-            homePct: aiHome,
+            aiPrediction: game.aiPrediction,
             userOdds: game.userOdds,
             awayScore: game.awayScore,
             homeScore: game.homeScore,
