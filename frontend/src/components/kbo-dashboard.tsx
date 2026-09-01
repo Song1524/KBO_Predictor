@@ -225,7 +225,7 @@ function getPredictionReasons(reason: string | null) {
     .split(/\r?\n/)
     .map((item) => item.trim())
     .filter(Boolean)
-    .slice(0, 3)
+    .slice(0, 2)
 }
 
 function probabilityBarWidth(value: number) {
@@ -258,12 +258,6 @@ function formatOdds(value: number | null) {
   return value == null || !Number.isFinite(Number(value))
     ? '-'
     : `${Number(value).toFixed(2)}배`
-}
-
-function formatBettingRate(value: number | null) {
-  return value == null || !Number.isFinite(Number(value))
-    ? '-'
-    : `${Math.round(Number(value))}%`
 }
 
 function formatTotalBetPoints(value: number | null) {
@@ -332,10 +326,6 @@ function getOutcomeOdds(
   }
 }
 
-function scoreLabel(score: number | null) {
-  return score == null ? '정보 없음' : `${score}점`
-}
-
 function TeamMark({ teamName }: { teamName: string }) {
   return (
     <div className="flex size-12 items-center justify-center rounded-full bg-primary font-mono text-sm font-black text-primary-foreground">
@@ -348,12 +338,9 @@ function AiPredictionPanel({ game }: { game: DashboardGame }) {
   const prediction = game.aiPrediction
   if (!prediction) {
     return (
-      <div className="rounded-xl border bg-muted/40 px-4 py-5 text-center">
-        <Sparkles className="mx-auto size-4 text-muted-foreground" />
-        <p className="mt-2 text-sm font-bold">AI 분석 준비 중</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          시스템 예측이 생성되면 이곳에 표시됩니다.
-        </p>
+      <div className="flex items-center gap-2 border-t pt-3 text-sm font-semibold text-muted-foreground">
+        <Sparkles className="size-4" />
+        AI 분석 준비 중
       </div>
     )
   }
@@ -390,23 +377,28 @@ function AiPredictionPanel({ game }: { game: DashboardGame }) {
   const reasons = getPredictionReasons(prediction.reason)
 
   return (
-    <div className="rounded-xl border bg-muted/40 p-3">
-      <div className="min-w-0">
-        <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+    <section className="border-t pt-3">
+      <div className="flex min-w-0 items-start gap-2">
+        <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
           <Sparkles className="size-3.5" />
-          AI 경기 분석
-        </p>
-        <p className="mt-1 line-clamp-2 text-sm font-black">
-          {predictionLabel
-            ? `AI 예상: ${predictionLabel}`
-            : 'AI 예상 결과 확인 중'}
-        </p>
+        </div>
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-primary">
+            AI 예상
+          </p>
+          <p
+            className="line-clamp-1 text-sm font-black"
+            title={predictionLabel ?? undefined}
+          >
+            {predictionLabel ?? '예상 결과 확인 중'}
+          </p>
+        </div>
       </div>
 
       {probabilities ? (
         <>
           <div
-            className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-border"
+            className="mt-3 flex h-2 overflow-hidden rounded-full bg-border"
             aria-label={probabilities
               .map(({ label, value }) => `${label} ${formatProbability(value)}`)
               .join(', ')}
@@ -420,54 +412,49 @@ function AiPredictionPanel({ game }: { game: DashboardGame }) {
               />
             ))}
           </div>
-          <div className="mt-2 grid grid-cols-3 gap-1.5 text-center">
+          <div className="mt-1.5 grid grid-cols-3 text-center text-[11px]">
             {probabilities.map(({ outcome, label, value }) => {
               const predicted = prediction.predictedOutcome === outcome
               return (
-                <div
+                <p
                   key={outcome}
-                  className={`min-w-0 rounded-md border px-1.5 py-1.5 ${predicted ? 'border-primary/30 bg-background shadow-sm' : 'border-transparent'}`}
+                  className={predicted
+                    ? 'font-bold text-primary'
+                    : 'text-muted-foreground'}
                 >
-                  <p className="truncate text-[10px] text-muted-foreground">
-                    {label}
-                  </p>
-                  <p className={`font-mono text-xs ${predicted ? 'font-black text-primary' : 'font-semibold'}`}>
-                    {formatProbability(value)}
-                  </p>
-                </div>
+                  <span>{label}</span>{' '}
+                  <span className="font-mono">{formatProbability(value)}</span>
+                </p>
               )
             })}
           </div>
         </>
       ) : (
-        <p className="mt-3 rounded-md bg-background/70 py-2 text-center text-xs text-muted-foreground">
+        <p className="mt-2 text-xs font-medium text-muted-foreground">
           AI 확률 데이터 준비 중
         </p>
       )}
 
-      {reasons.length > 0 ? (
-        <div className="mt-3 border-t pt-3">
-          <p className="text-[11px] font-bold text-muted-foreground">
+      {reasons.length > 0 && (
+        <div className="mt-2.5">
+          <p className="text-[11px] font-bold text-foreground/70">
             예측 근거
           </p>
-          <ul className="mt-1.5 grid gap-1.5">
+          <ul className="mt-1 grid gap-1">
             {reasons.map((reason, index) => (
               <li
                 key={`${index}-${reason}`}
-                className="flex gap-1.5 text-[11px] leading-relaxed text-muted-foreground"
+                className="flex min-w-0 gap-1.5 text-[11px] leading-relaxed text-muted-foreground"
+                title={reason}
               >
                 <span aria-hidden="true" className="text-primary">•</span>
-                <span className="line-clamp-2">{reason}</span>
+                <span className="line-clamp-1">{reason}</span>
               </li>
             ))}
           </ul>
         </div>
-      ) : (
-        <p className="mt-3 border-t pt-3 text-[11px] text-muted-foreground">
-          제공된 세부 예측 근거가 없습니다.
-        </p>
       )}
-    </div>
+    </section>
   )
 }
 
@@ -625,6 +612,15 @@ function GameCard({
     : null
   const showScore =
     game.status === 'IN_PROGRESS' || game.status === 'FINISHED'
+  const bettingStatusLabel = !game.userOdds
+    ? null
+    : game.userOdds.finalized
+      ? '최종 배당'
+      : bettingOpen
+        ? '배당 변동 중'
+        : deadlineReached
+          ? '배당 확정 중'
+          : '예측 참여 불가'
 
   return (
     <Card className="transition-shadow hover:shadow-md">
@@ -644,7 +640,7 @@ function GameCard({
         </CardDescription>
 
         <CardAction>
-          <span className="text-xs text-muted-foreground">
+          <span className="font-mono text-xs font-medium text-foreground/70">
             {game.userOdds
               ? formatTotalBetPoints(game.userOdds.totalBetPoints)
               : '투표 정보 없음'}
@@ -652,22 +648,32 @@ function GameCard({
         </CardAction>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-5">
+      <CardContent className="flex flex-col gap-4">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
           <div className="flex flex-col items-center gap-2 text-center">
             <TeamMark
               teamName={game.away}
             />
             <strong className="text-base">{game.away}</strong>
-            <span className="text-xs text-muted-foreground">
-              {showScore
-                ? scoreLabel(game.awayScore)
-                : game.awayStartingPitcherName ?? '선발 미정'}
+            <span
+              className="max-w-full truncate text-xs font-medium text-foreground/70"
+              title={game.awayStartingPitcherName ?? '선발 미정'}
+            >
+              선발 {game.awayStartingPitcherName ?? '미정'}
             </span>
           </div>
 
-          <div className="font-mono text-xs font-semibold text-muted-foreground">
-            VS
+          <div
+            className={showScore
+              ? 'font-mono text-xl font-black tracking-tight'
+              : 'font-mono text-xs font-bold text-muted-foreground'}
+            aria-label={showScore
+              ? `${game.away} ${game.awayScore ?? '점수 미정'}, ${game.home} ${game.homeScore ?? '점수 미정'}`
+              : `${game.away} 대 ${game.home}`}
+          >
+            {showScore
+              ? `${game.awayScore ?? '-'} : ${game.homeScore ?? '-'}`
+              : 'VS'}
           </div>
 
           <div className="flex flex-col items-center gap-2 text-center">
@@ -675,10 +681,11 @@ function GameCard({
               teamName={game.home}
             />
             <strong className="text-base">{game.home}</strong>
-            <span className="text-xs text-muted-foreground">
-              {showScore
-                ? scoreLabel(game.homeScore)
-                : game.homeStartingPitcherName ?? '선발 미정'}
+            <span
+              className="max-w-full truncate text-xs font-medium text-foreground/70"
+              title={game.homeStartingPitcherName ?? '선발 미정'}
+            >
+              선발 {game.homeStartingPitcherName ?? '미정'}
             </span>
           </div>
         </div>
@@ -690,7 +697,11 @@ function GameCard({
             {outcomeOptions.map(({ outcome, data }) => (
               <Button
                 key={outcome}
-                className="h-auto min-h-24 flex-col gap-1 px-2 py-3"
+                className={`h-auto min-h-16 flex-col gap-0.5 px-2 py-2.5 disabled:border-border/40 disabled:bg-muted/50 disabled:text-muted-foreground disabled:shadow-none ${
+                  pick === outcome
+                    ? 'shadow-sm'
+                    : 'border-primary/25 shadow-sm hover:border-primary hover:bg-primary/5'
+                }`}
                 disabled={
                   !bettingOpen ||
                   !data ||
@@ -701,28 +712,40 @@ function GameCard({
                 variant={pick === outcome ? 'default' : 'outline'}
                 onClick={() => selectOutcome(outcome)}
               >
-                <span className="max-w-full truncate font-semibold">
+                <span className="max-w-full truncate font-bold">
                   {getOutcomeLabel(outcome, game)}
                 </span>
-                <span className="text-[11px] opacity-70">
-                  포인트 비율 {formatBettingRate(data?.userBettingRate ?? null)}
-                </span>
-                <span className="font-mono text-xs font-bold">
-                  {game.userOdds?.finalized ? '최종 ' : '현재 '}
+                <span
+                  className={`font-mono text-[11px] ${pick === outcome
+                    ? 'text-primary-foreground/75'
+                    : 'text-muted-foreground'}`}
+                >
                   {formatOdds(data?.odds ?? null)}
                 </span>
               </Button>
             ))}
           </div>
         ) : (
-          <p className="rounded-lg border py-5 text-center text-xs text-muted-foreground">
+          <p className="py-3 text-center text-xs font-medium text-muted-foreground">
             투표 정보가 없습니다.
           </p>
         )}
 
-        <p className="text-center text-xs text-muted-foreground">
-          예측 마감 {formatPredictionCloseAt(predictionCloseAt)}
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t pt-3 text-xs">
+          <span className="font-medium text-foreground/70">
+            예측 마감{' '}
+            <span className="font-mono">
+              {formatPredictionCloseAt(predictionCloseAt)}
+            </span>
+          </span>
+          {bettingStatusLabel && (
+            <span className={bettingOpen
+              ? 'font-bold text-primary'
+              : 'font-semibold text-muted-foreground'}>
+              {bettingStatusLabel}
+            </span>
+          )}
+        </div>
 
         {pick && !confirmedPrediction && user && (
           <div className="grid gap-4 rounded-xl border bg-muted/30 p-4">
@@ -840,16 +863,6 @@ function GameCard({
               </p>
             )}
           </div>
-        )}
-
-        {game.userOdds && !bettingOpen && (
-          <p className="text-center text-xs text-muted-foreground">
-            {game.userOdds.finalized
-              ? '예측 마감 · 최종 배당'
-              : deadlineReached
-                ? '예측 마감 · 최종 배당 확정 중'
-                : '예측 참여 불가'}
-          </p>
         )}
 
         {predictionMessage && (
