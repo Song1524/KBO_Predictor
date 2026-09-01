@@ -52,6 +52,11 @@ public class GameUpsertService {
                 homeScore = game.getHomeScore();
                 awayScore = game.getAwayScore();
                 result = game.getResult();
+            } else if (shouldPreserveLastLiveScore(game, collectedGame)) {
+                // Display-only snapshot: official result and winner stay unknown.
+                homeScore = game.getHomeScore();
+                awayScore = game.getAwayScore();
+                result = null;
             }
             Team winnerTeam = determineWinner(result, homeTeam, awayTeam);
             boolean terminalDataChanged = isTerminal(previous.status())
@@ -177,6 +182,34 @@ public class GameUpsertService {
                 && existing.getResult() != null;
     }
 
+    private boolean shouldPreserveLastLiveScore(
+            Game existing,
+            CollectedGame collectedGame
+    ) {
+        boolean liveOrUnconfirmedFinished = existing.getStatus()
+                == GameStatus.IN_PROGRESS
+                || isUnconfirmedFinished(existing);
+        return liveOrUnconfirmedFinished
+                && hasCompleteNonNegativeScore(existing)
+                && collectedGame.status() == GameStatus.FINISHED
+                && !collectedGame.finalScoreConfirmed()
+                && collectedGame.homeScore() == null
+                && collectedGame.awayScore() == null;
+    }
+
+    private boolean hasCompleteNonNegativeScore(Game game) {
+        return game.getHomeScore() != null
+                && game.getAwayScore() != null
+                && game.getHomeScore() >= 0
+                && game.getAwayScore() >= 0;
+    }
+
+    private boolean isUnconfirmedFinished(Game game) {
+        return game.getStatus() == GameStatus.FINISHED
+                && game.getResult() == null
+                && game.getWinnerTeam() == null;
+    }
+
     private GameResult resultOf(int homeScore, int awayScore) {
         if (homeScore > awayScore) {
             return GameResult.HOME_WIN;
@@ -248,16 +281,12 @@ public class GameUpsertService {
                 && collectedStatus == GameStatus.SCHEDULED;
         boolean regressedFromTerminal = isTerminal(previousStatus)
                 && !isTerminal(collectedStatus);
-        boolean correctsFalseFinished = previousStatus == GameStatus.FINISHED
-                && existing.getHomeScore() == null
-                && existing.getAwayScore() == null
-                && existing.getResult() == null
-                && existing.getWinnerTeam() == null
+        boolean correctsUnconfirmedFinished = isUnconfirmedFinished(existing)
                 && !collected.finalScoreConfirmed()
                 && (collectedStatus == GameStatus.SCHEDULED
                     || collectedStatus == GameStatus.IN_PROGRESS);
         if (regressedFromInProgress
-                || (regressedFromTerminal && !correctsFalseFinished)) {
+                || (regressedFromTerminal && !correctsUnconfirmedFinished)) {
             throw new IllegalStateException(
                     "KBO 경기 상태가 역방향으로 변경되어 기존 데이터를 유지합니다: "
                             + previousStatus

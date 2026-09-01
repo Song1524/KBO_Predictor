@@ -201,6 +201,7 @@ class KboGameSyncSchedulerTest {
             LocalTime gameTime,
             boolean completeFinalResult
     ) {
+        boolean hasDisplayScore = status == GameStatus.FINISHED;
         return Game.createCollected(
                 "20260810LGOB0",
                 2026,
@@ -210,8 +211,8 @@ class KboGameSyncSchedulerTest {
                 null,
                 "잠실",
                 status,
-                completeFinalResult ? 3 : null,
-                completeFinalResult ? 2 : null,
+                hasDisplayScore ? 3 : null,
+                hasDisplayScore ? 2 : null,
                 null,
                 completeFinalResult ? GameResult.HOME_WIN : null,
                 null,

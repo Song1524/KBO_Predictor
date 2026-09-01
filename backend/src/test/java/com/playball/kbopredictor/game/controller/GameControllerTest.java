@@ -73,6 +73,32 @@ class GameControllerTest {
                 .andExpect(jsonPath("$[0].awayStartingPitcherName").value("나균안"));
     }
 
+    @Test
+    void gamesApiReturnsPreservedLiveScoreWhileFinalResultIsPending()
+            throws Exception {
+        LocalDate date = LocalDate.of(2026, 8, 12);
+        Team home = team(1L, "OB", "두산 베어스");
+        Team away = team(2L, "LG", "LG 트윈스");
+        Game game = Game.createCollected(
+                "20260812LGOB0", 2026, date, LocalTime.of(18, 30),
+                home, away, "잠실", GameStatus.FINISHED,
+                5, 3, null, null, null,
+                LocalDateTime.of(2026, 8, 12, 22, 0)
+        );
+        ReflectionTestUtils.setField(game, "id", 1L);
+        when(gameService.getGamesByDate(date)).thenReturn(List.of(
+                GameResponse.from(game, null, null, null, null)
+        ));
+
+        mockMvc.perform(get("/api/games").param("date", "2026-08-12"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("FINISHED"))
+                .andExpect(jsonPath("$[0].homeScore").value(5))
+                .andExpect(jsonPath("$[0].awayScore").value(3))
+                .andExpect(jsonPath("$[0].result").doesNotExist())
+                .andExpect(jsonPath("$[0].winnerTeamId").doesNotExist());
+    }
+
     private StartingPitcher starter(
             Game game,
             Team team,

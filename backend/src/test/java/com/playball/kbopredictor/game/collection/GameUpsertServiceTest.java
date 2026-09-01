@@ -332,6 +332,54 @@ class GameUpsertServiceTest {
     }
 
     @Test
+    void confirmedFinishedGameCannotReturnToInProgress() {
+        Game existing = Game.createCollected(
+                "20260812LGOB0",
+                2026,
+                GAME_DATE,
+                GAME_TIME,
+                homeTeam,
+                awayTeam,
+                "잠실",
+                GameStatus.FINISHED,
+                5,
+                3,
+                homeTeam,
+                GameResult.HOME_WIN,
+                null,
+                NOW.minusDays(1)
+        );
+        when(gameRepository.findByExternalGameId("20260812LGOB0"))
+                .thenReturn(Optional.of(existing));
+
+        CollectedGame temporaryLiveResponse = new CollectedGame(
+                "20260812LGOB0",
+                2026,
+                GAME_DATE,
+                GAME_TIME,
+                "LG",
+                "OB",
+                "잠실",
+                GameStatus.IN_PROGRESS,
+                3,
+                5,
+                null,
+                false,
+                null
+        );
+
+        assertThatThrownBy(() -> service.upsert(temporaryLiveResponse))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("FINISHED -> IN_PROGRESS");
+
+        assertThat(existing.getStatus()).isEqualTo(GameStatus.FINISHED);
+        assertThat(existing.getHomeScore()).isEqualTo(5);
+        assertThat(existing.getAwayScore()).isEqualTo(3);
+        assertThat(existing.getResult()).isEqualTo(GameResult.HOME_WIN);
+        assertThat(existing.getWinnerTeam()).isSameAs(homeTeam);
+    }
+
+    @Test
     void falseFinishedWithoutResultCanReturnToScheduled() {
         Game existing = Game.createCollected(
                 "20260812LGOB0",
@@ -367,7 +415,7 @@ class GameUpsertServiceTest {
     }
 
     @Test
-    void falseFinishedWithoutResultCanAdvanceToInProgress() {
+    void unconfirmedFinishedWithPreservedScoreCanReturnToInProgress() {
         Game existing = Game.createCollected(
                 "20260812LGOB0",
                 2026,
@@ -377,8 +425,8 @@ class GameUpsertServiceTest {
                 awayTeam,
                 "잠실",
                 GameStatus.FINISHED,
-                null,
-                null,
+                5,
+                3,
                 null,
                 null,
                 null,
@@ -396,8 +444,8 @@ class GameUpsertServiceTest {
                 "OB",
                 "잠실",
                 GameStatus.IN_PROGRESS,
-                0,
-                1,
+                4,
+                6,
                 null,
                 false,
                 null
@@ -405,9 +453,10 @@ class GameUpsertServiceTest {
 
         assertThat(result.statusChanged()).isTrue();
         assertThat(existing.getStatus()).isEqualTo(GameStatus.IN_PROGRESS);
-        assertThat(existing.getAwayScore()).isZero();
-        assertThat(existing.getHomeScore()).isEqualTo(1);
+        assertThat(existing.getAwayScore()).isEqualTo(4);
+        assertThat(existing.getHomeScore()).isEqualTo(6);
         assertThat(existing.getResult()).isNull();
+        assertThat(existing.getWinnerTeam()).isNull();
     }
 
     @Test
@@ -504,7 +553,7 @@ class GameUpsertServiceTest {
     }
 
     @Test
-    void unconfirmedFinishedResultIsPendingUntilConfirmedScoreArrives() {
+    void unconfirmedFinishedPreservesLastLiveScoreUntilOfficialScoreArrives() {
         Game existing = Game.createCollected(
                 "20260812LGOB0",
                 2026,
@@ -514,8 +563,8 @@ class GameUpsertServiceTest {
                 awayTeam,
                 "잠실",
                 GameStatus.IN_PROGRESS,
-                0,
-                0,
+                5,
+                3,
                 null,
                 null,
                 null,
@@ -542,9 +591,34 @@ class GameUpsertServiceTest {
 
         assertThat(pending.reachedFinished()).isTrue();
         assertThat(pending.finalScoreConfirmed()).isFalse();
-        assertThat(existing.getHomeScore()).isNull();
-        assertThat(existing.getAwayScore()).isNull();
+        assertThat(existing.getStatus()).isEqualTo(GameStatus.FINISHED);
+        assertThat(existing.getHomeScore()).isEqualTo(5);
+        assertThat(existing.getAwayScore()).isEqualTo(3);
         assertThat(existing.getResult()).isNull();
+        assertThat(existing.getWinnerTeam()).isNull();
+
+        GameUpsertResult repeatedPending = service.upsert(new CollectedGame(
+                "20260812LGOB0",
+                2026,
+                GAME_DATE,
+                GAME_TIME,
+                "LG",
+                "OB",
+                "잠실",
+                GameStatus.FINISHED,
+                null,
+                null,
+                null,
+                false,
+                null
+        ));
+
+        assertThat(repeatedPending.reachedFinished()).isFalse();
+        assertThat(repeatedPending.finalScoreConfirmed()).isFalse();
+        assertThat(existing.getHomeScore()).isEqualTo(5);
+        assertThat(existing.getAwayScore()).isEqualTo(3);
+        assertThat(existing.getResult()).isNull();
+        assertThat(existing.getWinnerTeam()).isNull();
 
         GameUpsertResult confirmed = service.upsert(new CollectedGame(
                 "20260812LGOB0",
@@ -555,18 +629,62 @@ class GameUpsertServiceTest {
                 "OB",
                 "잠실",
                 GameStatus.FINISHED,
-                2,
-                7,
+                3,
+                6,
                 GameResult.HOME_WIN,
                 true,
                 null
         ));
 
         assertThat(confirmed.finalScoreConfirmed()).isTrue();
-        assertThat(existing.getAwayScore()).isEqualTo(2);
-        assertThat(existing.getHomeScore()).isEqualTo(7);
+        assertThat(existing.getAwayScore()).isEqualTo(3);
+        assertThat(existing.getHomeScore()).isEqualTo(6);
         assertThat(existing.getResult()).isEqualTo(GameResult.HOME_WIN);
         assertThat(existing.getWinnerTeam()).isSameAs(homeTeam);
+    }
+
+    @Test
+    void incompleteLiveScoreIsNotPreservedForUnconfirmedFinishedGame() {
+        Game existing = Game.createCollected(
+                "20260812LGOB0",
+                2026,
+                GAME_DATE,
+                GAME_TIME,
+                homeTeam,
+                awayTeam,
+                "잠실",
+                GameStatus.IN_PROGRESS,
+                5,
+                null,
+                null,
+                null,
+                null,
+                NOW.minusDays(1)
+        );
+        when(gameRepository.findByExternalGameId("20260812LGOB0"))
+                .thenReturn(Optional.of(existing));
+
+        service.upsert(new CollectedGame(
+                "20260812LGOB0",
+                2026,
+                GAME_DATE,
+                GAME_TIME,
+                "LG",
+                "OB",
+                "잠실",
+                GameStatus.FINISHED,
+                null,
+                null,
+                null,
+                false,
+                null
+        ));
+
+        assertThat(existing.getStatus()).isEqualTo(GameStatus.FINISHED);
+        assertThat(existing.getHomeScore()).isNull();
+        assertThat(existing.getAwayScore()).isNull();
+        assertThat(existing.getResult()).isNull();
+        assertThat(existing.getWinnerTeam()).isNull();
     }
 
     @Test
@@ -622,9 +740,9 @@ class GameUpsertServiceTest {
                 homeTeam,
                 awayTeam,
                 "잠실",
-                GameStatus.SCHEDULED,
-                null,
-                null,
+                GameStatus.IN_PROGRESS,
+                5,
+                3,
                 null,
                 null,
                 null,
@@ -650,6 +768,8 @@ class GameUpsertServiceTest {
         ));
 
         assertThat(existing.getStatus()).isEqualTo(GameStatus.CANCELLED);
+        assertThat(existing.getHomeScore()).isNull();
+        assertThat(existing.getAwayScore()).isNull();
         assertThat(existing.getResult()).isNull();
         assertThat(existing.getWinnerTeam()).isNull();
         assertThat(existing.getCancelReason()).isEqualTo("우천취소");

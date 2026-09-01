@@ -39,6 +39,8 @@ class TeamRecentFormCalculatorTest {
                         GameStatus.FINISHED, GameResult.HOME_WIN),
                 game(cutoff.minusDays(1), lg, ob, 10, 0,
                         GameStatus.IN_PROGRESS, null),
+                game(cutoff.minusDays(1), lg, ob, 99, 0,
+                        GameStatus.FINISHED, null),
                 game(cutoff.minusDays(1), lg, ob, 5, 2,
                         GameStatus.FINISHED, GameResult.HOME_WIN),
                 game(cutoff.minusDays(2), ob, lg, 4, 1,
