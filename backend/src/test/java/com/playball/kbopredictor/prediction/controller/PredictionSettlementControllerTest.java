@@ -26,6 +26,7 @@ import java.util.List;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -58,7 +59,7 @@ class PredictionSettlementControllerTest {
 
     @Test
     void unauthenticatedUserCannotSettleGame() throws Exception {
-        mockMvc.perform(post(SETTLEMENT_URL, GAME_ID))
+        mockMvc.perform(post(SETTLEMENT_URL, GAME_ID).with(csrf()))
                 .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(predictionSettlementService);
@@ -67,6 +68,7 @@ class PredictionSettlementControllerTest {
     @Test
     void normalUserCannotSettleGame() throws Exception {
         mockMvc.perform(post(SETTLEMENT_URL, GAME_ID)
+                        .with(csrf())
                         .with(user(principal("USER"))))
                 .andExpect(status().isForbidden());
 
@@ -92,6 +94,7 @@ class PredictionSettlementControllerTest {
         );
 
         mockMvc.perform(post(SETTLEMENT_URL, GAME_ID)
+                        .with(csrf())
                         .with(user(principal("ADMIN"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.gameId").value(GAME_ID))
@@ -122,6 +125,7 @@ class PredictionSettlementControllerTest {
 
         mockMvc.perform(post(SETTLEMENT_URL, GAME_ID)
                         .param("rollbackRevision", "1")
+                        .with(csrf())
                         .with(user(principal("ADMIN"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.settlementRevision").value(2));
@@ -130,9 +134,11 @@ class PredictionSettlementControllerTest {
     }
 
     @Test
-    void legacyPublicSettlementUrlIsNotExposed() throws Exception {
-        mockMvc.perform(post("/api/games/{gameId}/settlement", GAME_ID))
-                .andExpect(status().isNotFound());
+    void legacySettlementUrlIsDeniedByDefault() throws Exception {
+        mockMvc.perform(post("/api/games/{gameId}/settlement", GAME_ID)
+                        .with(csrf())
+                        .with(user(principal("ADMIN"))))
+                .andExpect(status().isForbidden());
 
         verifyNoInteractions(predictionSettlementService);
     }
@@ -140,6 +146,7 @@ class PredictionSettlementControllerTest {
     @Test
     void unauthenticatedUserCannotRollbackSettlement() throws Exception {
         mockMvc.perform(post(ROLLBACK_URL, GAME_ID)
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(rollbackRequest()))
                 .andExpect(status().isUnauthorized());
@@ -150,6 +157,7 @@ class PredictionSettlementControllerTest {
     @Test
     void normalUserCannotRollbackSettlement() throws Exception {
         mockMvc.perform(post(ROLLBACK_URL, GAME_ID)
+                        .with(csrf())
                         .with(user(principal("USER")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(rollbackRequest()))
@@ -175,6 +183,7 @@ class PredictionSettlementControllerTest {
         ));
 
         mockMvc.perform(post(ROLLBACK_URL, GAME_ID)
+                        .with(csrf())
                         .with(user(principal("ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(rollbackRequest()))
@@ -192,6 +201,7 @@ class PredictionSettlementControllerTest {
     @Test
     void normalUserCannotCorrectGameResult() throws Exception {
         mockMvc.perform(put(CORRECTION_URL, GAME_ID)
+                        .with(csrf())
                         .with(user(principal("USER")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(correctionRequest()))
@@ -228,6 +238,7 @@ class PredictionSettlementControllerTest {
         );
 
         mockMvc.perform(put(CORRECTION_URL, GAME_ID)
+                        .with(csrf())
                         .with(user(principal("ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(correctionRequest()))
@@ -236,6 +247,15 @@ class PredictionSettlementControllerTest {
                 .andExpect(jsonPath("$.correctedByUserId").value(1));
 
         verify(recoveryService).correctResult(GAME_ID, 1L, request);
+    }
+
+    @Test
+    void adminSettlementWithoutCsrfTokenIsForbidden() throws Exception {
+        mockMvc.perform(post(SETTLEMENT_URL, GAME_ID)
+                        .with(user(principal("ADMIN"))))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(predictionSettlementService);
     }
 
     private String rollbackRequest() {

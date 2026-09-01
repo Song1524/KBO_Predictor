@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { TeamStandingApiResponse } from '@/lib/api-types'
+import { apiFetch } from '@/lib/api-client'
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -39,7 +40,7 @@ export function useStandings() {
         setIsLoading(true)
         setError('')
 
-        const response = await fetch('/api/standings', {
+        const response = await apiFetch('/api/standings', {
           signal: controller.signal,
         })
         if (!response.ok) {

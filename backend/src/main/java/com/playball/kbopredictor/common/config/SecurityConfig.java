@@ -10,10 +10,11 @@ import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 
@@ -21,6 +22,18 @@ import java.nio.charset.StandardCharsets;
 
 @Configuration
 public class SecurityConfig {
+
+    private static final String[] PUBLIC_READ_ENDPOINTS = {
+            "/api/auth/csrf",
+            "/api/games",
+            "/api/games/*",
+            "/api/games/*/prediction",
+            "/api/games/*/odds",
+            "/api/teams",
+            "/api/teams/*/stats/latest",
+            "/api/standings",
+            "/api/rankings"
+    };
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -48,8 +61,17 @@ public class SecurityConfig {
             HttpSecurity http,
             SecurityContextRepository securityContextRepository
     ) throws Exception {
+        CookieCsrfTokenRepository csrfTokenRepository =
+                CookieCsrfTokenRepository.withHttpOnlyFalse();
+        csrfTokenRepository.setCookiePath("/");
+
         http
-                .csrf(AbstractHttpConfigurer::disable)
+                .csrf(csrf -> csrf
+                        .csrfTokenRepository(csrfTokenRepository)
+                        .csrfTokenRequestHandler(
+                                new CsrfTokenRequestAttributeHandler()
+                        )
+                )
                 .cors(Customizer.withDefaults())
                 .securityContext(securityContext -> securityContext
                         .securityContextRepository(securityContextRepository)
@@ -61,22 +83,35 @@ public class SecurityConfig {
                                 "/actuator/health/**"
                         )
                         .permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/api/**")
+                        .permitAll()
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/auth/login",
                                 "/api/auth/signup"
                         )
                         .permitAll()
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                PUBLIC_READ_ENDPOINTS
+                        )
+                        .permitAll()
+                        .requestMatchers(
+                                HttpMethod.HEAD,
+                                PUBLIC_READ_ENDPOINTS
+                        )
+                        .permitAll()
                         .requestMatchers("/api/admin/**")
                         .hasRole("ADMIN")
                         .requestMatchers(
-                                "/api/auth/**",
+                                "/api/auth/me",
+                                "/api/auth/logout",
                                 "/api/user-predictions/**",
                                 "/api/points/**"
                         )
                         .authenticated()
                         .anyRequest()
-                        .permitAll()
+                        .denyAll()
                 )
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, exception) -> {

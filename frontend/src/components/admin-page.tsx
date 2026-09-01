@@ -42,6 +42,7 @@ import type {
   StartingPitcherSyncResponse,
   TeamStatsSyncResponse,
 } from '@/lib/admin-api-types'
+import { apiFetch } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 
 type Confirmation = {
@@ -108,7 +109,7 @@ function confidenceInterval(
 }
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
+  const response = await apiFetch(url, {
     credentials: 'include',
     ...init,
     headers: init?.body

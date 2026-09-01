@@ -25,6 +25,7 @@ import type {
   UserApiResponse,
   UserPredictionApiResponse,
 } from '@/lib/api-types'
+import { apiFetch } from '@/lib/api-client'
 import { useStandings } from '@/lib/use-standings'
 
 const MIN_PREDICTION_POINTS = 100
@@ -395,7 +396,7 @@ function GameCard({
       setPredictionMessage('')
       setHasPredictionError(false)
 
-      const response = await fetch('/api/user-predictions', {
+      const response = await apiFetch('/api/user-predictions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -717,7 +718,7 @@ export function KboDashboard() {
 
   const loadUserPredictions = async () => {
     try {
-      const response = await fetch(
+      const response = await apiFetch(
           '/api/user-predictions/me',
           { credentials: 'include' },
       )
@@ -749,7 +750,7 @@ export function KboDashboard() {
       setGamesError('')
       setGames([])
 
-      const gameResponse = await fetch(
+      const gameResponse = await apiFetch(
         `/api/games?date=${encodeURIComponent(date)}`,
         { signal },
       )

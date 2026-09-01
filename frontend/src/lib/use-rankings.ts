@@ -4,6 +4,7 @@ import type {
   RankingEntryApiResponse,
   RankingType,
 } from '@/lib/api-types'
+import { apiFetch } from '@/lib/api-client'
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -65,7 +66,7 @@ export function useRankings(
         setError('')
         setData(null)
 
-        const response = await fetch(
+        const response = await apiFetch(
           `/api/rankings?type=${encodeURIComponent(type)}&limit=20`,
           {
             credentials: 'include',

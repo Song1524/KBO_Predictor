@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth-context'
 import { Button, buttonVariants } from '@/components/ui/button'
 import type { TeamApiResponse } from '@/lib/api-types'
+import { apiFetch } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 
 type AuthMode = 'login' | 'signup'
@@ -30,7 +31,7 @@ export function AppHeader() {
     const loadTeams = async () => {
       try {
         setTeamsError('')
-        const response = await fetch('/api/teams', {
+        const response = await apiFetch('/api/teams', {
           signal: controller.signal,
         })
         if (!response.ok) throw new Error('응원팀을 불러오지 못했습니다.')

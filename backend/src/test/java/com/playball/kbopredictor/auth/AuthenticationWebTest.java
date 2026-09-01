@@ -37,6 +37,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.reset;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -77,10 +78,22 @@ class AuthenticationWebTest {
     @Test
     void unauthenticatedPredictionReturnsUnauthorized() throws Exception {
         mockMvc.perform(post("/api/user-predictions")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(predictionJson(999L)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("로그인이 필요합니다."));
+    }
+
+    @Test
+    void stateChangingRequestWithoutCsrfTokenIsForbidden() throws Exception {
+        mockMvc.perform(post("/api/user-predictions")
+                        .with(user(authenticatedUser("encoded-password")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(predictionJson(999L)))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(userPredictionService);
     }
 
     @Test
@@ -94,6 +107,7 @@ class AuthenticationWebTest {
     void predictionUsesAuthenticatedUserInsteadOfRequestUserId() throws Exception {
         mockMvc.perform(post("/api/user-predictions")
                         .with(user(authenticatedUser("encoded-password")))
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(predictionJson(999L)))
                 .andExpect(status().isCreated());
@@ -112,6 +126,7 @@ class AuthenticationWebTest {
     void predictionRejectsPointAmountBelowMinimumBeforeCallingService() throws Exception {
         mockMvc.perform(post("/api/user-predictions")
                         .with(user(authenticatedUser("encoded-password")))
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -174,6 +189,7 @@ class AuthenticationWebTest {
                 .thenReturn(userResponse());
 
         MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -200,6 +216,7 @@ class AuthenticationWebTest {
                 .thenReturn(authenticatedUser(passwordEncoder.encode("test1234!")));
 
         mockMvc.perform(post("/api/auth/login")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -232,6 +249,7 @@ class AuthenticationWebTest {
         when(userService.getUser(newUserId)).thenReturn(registered);
 
         MvcResult signupResult = mockMvc.perform(post("/api/auth/signup")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -257,6 +275,7 @@ class AuthenticationWebTest {
                 .andExpect(jsonPath("$.id").value(newUserId));
         mockMvc.perform(post("/api/user-predictions")
                         .session(session)
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(predictionJson(999L)))
                 .andExpect(status().isCreated());
@@ -268,6 +287,7 @@ class AuthenticationWebTest {
     @Test
     void signupValidationReturnsConsistentBadRequestJson() throws Exception {
         mockMvc.perform(post("/api/auth/signup")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -290,6 +310,7 @@ class AuthenticationWebTest {
                         "email", "이미 사용 중인 이메일입니다."
                 ));
         mockMvc.perform(post("/api/auth/signup")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validSignupJson(1L)))
                 .andExpect(status().isConflict())
@@ -301,10 +322,50 @@ class AuthenticationWebTest {
                         "favoriteTeamId", "존재하지 않는 응원팀입니다."
                 ));
         mockMvc.perform(post("/api/auth/signup")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validSignupJson(999L)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.favoriteTeamId").exists());
+    }
+
+    @Test
+    void logoutWithCsrfInvalidatesAuthenticatedSession() throws Exception {
+        String encodedPassword = passwordEncoder.encode("test1234!");
+        when(userDetailsService.loadUserByUsername("test@test.com"))
+                .thenReturn(authenticatedUser(encodedPassword));
+        when(userService.getUser(AUTHENTICATED_USER_ID))
+                .thenReturn(userResponse());
+
+        MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "test@test.com",
+                                  "password": "test1234!"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+        MockHttpSession session = (MockHttpSession)
+                loginResult.getRequest().getSession(false);
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .session(session)
+                        .with(csrf()))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/auth/me").session(session))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void unlistedApiIsDeniedByDefault() throws Exception {
+        mockMvc.perform(get("/api/not-declared"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/not-declared")
+                        .with(user(authenticatedUser("encoded-password"))))
+                .andExpect(status().isForbidden());
     }
 
     private AuthenticatedUser authenticatedUser(String encodedPassword) {

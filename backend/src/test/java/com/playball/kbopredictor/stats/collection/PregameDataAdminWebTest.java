@@ -18,6 +18,7 @@ import java.util.List;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -41,9 +42,10 @@ class PregameDataAdminWebTest {
 
     @Test
     void nonAdminCannotRunPregameSync() throws Exception {
-        mockMvc.perform(post("/api/admin/data/team-stats/sync"))
+        mockMvc.perform(post("/api/admin/data/team-stats/sync").with(csrf()))
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(post("/api/admin/data/team-stats/sync")
+                        .with(csrf())
                         .with(user(principal("USER"))))
                 .andExpect(status().isForbidden());
     }
@@ -64,11 +66,13 @@ class PregameDataAdminWebTest {
         );
 
         mockMvc.perform(post("/api/admin/data/team-stats/sync")
+                        .with(csrf())
                         .with(user(principal("ADMIN"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sourceTeamCount").value(10));
 
         mockMvc.perform(post("/api/admin/data/starting-pitchers/sync")
+                        .with(csrf())
                         .queryParam("date", today.toString())
                         .with(user(principal("ADMIN"))))
                 .andExpect(status().isOk())

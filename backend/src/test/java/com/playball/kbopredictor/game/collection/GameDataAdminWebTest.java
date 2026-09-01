@@ -18,6 +18,7 @@ import java.util.List;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -41,6 +42,7 @@ class GameDataAdminWebTest {
     @Test
     void unauthenticatedUserCannotSyncGames() throws Exception {
         mockMvc.perform(post("/api/admin/data/games/sync")
+                        .with(csrf())
                         .queryParam("date", TARGET_DATE.toString()))
                 .andExpect(status().isUnauthorized());
     }
@@ -48,6 +50,7 @@ class GameDataAdminWebTest {
     @Test
     void normalUserCannotSyncGames() throws Exception {
         mockMvc.perform(post("/api/admin/data/games/sync")
+                        .with(csrf())
                         .queryParam("date", TARGET_DATE.toString())
                         .with(user(principal("USER"))))
                 .andExpect(status().isForbidden());
@@ -71,6 +74,7 @@ class GameDataAdminWebTest {
         );
 
         mockMvc.perform(post("/api/admin/data/games/sync")
+                        .with(csrf())
                         .queryParam("date", TARGET_DATE.toString())
                         .with(user(principal("ADMIN"))))
                 .andExpect(status().isOk())

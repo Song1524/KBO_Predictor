@@ -29,6 +29,7 @@ import type {
   PredictionSettlementStatus,
   UserPredictionApiResponse,
 } from '@/lib/api-types'
+import { apiFetch } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 
 const settlementLabels: Record<
@@ -119,8 +120,8 @@ export function MyPage() {
         setIsLoadingData(true)
         setErrorMessage('')
         const [predictionResponse, pointHistoryResponse] = await Promise.all([
-          fetch('/api/user-predictions/me', { credentials: 'include' }),
-          fetch('/api/points/me/history', { credentials: 'include' }),
+          apiFetch('/api/user-predictions/me'),
+          apiFetch('/api/points/me/history'),
         ])
 
         if (

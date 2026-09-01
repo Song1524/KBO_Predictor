@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { SignupRequest, UserApiResponse } from '@/lib/api-types'
+import { apiFetch } from '@/lib/api-client'
 
 type AuthContextValue = {
   user: UserApiResponse | null
@@ -26,7 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = async (): Promise<boolean> => {
     try {
-      const response = await fetch('/api/auth/me', {
+      const response = await apiFetch('/api/auth/me', {
         credentials: 'include',
       })
 
@@ -63,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   ): Promise<string | null> => {
     try {
       setIsAuthenticating(true)
-      const response = await fetch('/api/auth/login', {
+      const response = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -90,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       setIsAuthenticating(true)
-      await fetch('/api/auth/logout', {
+      await apiFetch('/api/auth/logout', {
         method: 'POST',
         credentials: 'include',
       })
@@ -103,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signup = async (request: SignupRequest): Promise<string | null> => {
     try {
       setIsAuthenticating(true)
-      const response = await fetch('/api/auth/signup', {
+      const response = await apiFetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

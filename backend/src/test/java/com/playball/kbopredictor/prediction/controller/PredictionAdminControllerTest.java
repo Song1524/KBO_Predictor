@@ -29,6 +29,7 @@ import java.util.List;
 
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.mock;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -60,12 +61,14 @@ class PredictionAdminControllerTest {
     @Test
     void predictionAdminApisRequireAdminRole() throws Exception {
         mockMvc.perform(post("/api/admin/predictions/generate")
+                        .with(csrf())
                         .queryParam("gameId", "10"))
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/admin/predictions/evaluation")
                         .with(user(principal("USER"))))
                 .andExpect(status().isForbidden());
         mockMvc.perform(post("/api/admin/predictions/backfill")
+                        .with(csrf())
                         .queryParam("from", "2026-05-01")
                         .queryParam("to", "2026-08-01"))
                 .andExpect(status().isUnauthorized());
@@ -97,6 +100,7 @@ class PredictionAdminControllerTest {
         );
 
         mockMvc.perform(post("/api/admin/predictions/backfill")
+                        .with(csrf())
                         .queryParam("from", "2026-05-01")
                         .queryParam("to", "2026-08-01")
                         .queryParam("syncGames", "false")
@@ -160,6 +164,7 @@ class PredictionAdminControllerTest {
         );
 
         mockMvc.perform(post("/api/admin/predictions/generate")
+                        .with(csrf())
                         .queryParam("gameId", "10")
                         .with(user(principal("ADMIN"))))
                 .andExpect(status().isOk())
@@ -174,9 +179,11 @@ class PredictionAdminControllerTest {
     @Test
     void generateRequiresExactlyOneTarget() throws Exception {
         mockMvc.perform(post("/api/admin/predictions/generate")
+                        .with(csrf())
                         .with(user(principal("ADMIN"))))
                 .andExpect(status().isBadRequest());
         mockMvc.perform(post("/api/admin/predictions/generate")
+                        .with(csrf())
                         .queryParam("gameId", "10")
                         .queryParam("date", "2026-08-11")
                         .with(user(principal("ADMIN"))))
