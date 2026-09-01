@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ChevronLeft,
   ChevronRight,
@@ -31,6 +31,7 @@ import { useStandings } from '@/lib/use-standings'
 const MIN_PREDICTION_POINTS = 100
 const PREDICTION_POINT_UNIT = 100
 const QUICK_POINT_AMOUNTS = [100, 300, 500] as const
+const GAMES_POLLING_INTERVAL_MS = 30_000
 
 type GameStatus =
   | 'SCHEDULED'
@@ -111,6 +112,13 @@ type DashboardGame = {
   cancelReason: string | null
 }
 
+type GamesLoadMode = 'initial' | 'refresh'
+
+type ActiveGamesRequest = {
+  date: string
+  controller: AbortController
+}
+
 function getKoreaDate(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Seoul',
@@ -123,6 +131,14 @@ function getKoreaDate(date = new Date()) {
   )
 
   return `${values.year}-${values.month}-${values.day}`
+}
+
+function shouldPollGames(date: string, games: DashboardGame[]) {
+  if (date >= getKoreaDate() || games.length === 0) return true
+
+  return games.some(
+    (game) => game.status !== 'FINISHED' && game.status !== 'CANCELLED',
+  )
 }
 
 function moveDate(date: string, days: number) {
@@ -711,6 +727,11 @@ export function KboDashboard() {
   const [isLoadingGames, setIsLoadingGames] = useState(true)
   const [gamesError, setGamesError] = useState('')
   const gamesRequestIdRef = useRef(0)
+  const activeGamesRequestRef = useRef<ActiveGamesRequest | null>(null)
+  const gamesPollingStateRef = useRef({
+    date: selectedDate,
+    enabled: true,
+  })
 
   const [userPredictions, setUserPredictions] = useState<
       UserPredictionApiResponse[]
@@ -742,17 +763,33 @@ export function KboDashboard() {
     }
   }
 
-  const loadGames = async (date: string, signal?: AbortSignal) => {
+  const loadGames = useCallback(async (
+    date: string,
+    mode: GamesLoadMode = 'refresh',
+  ) => {
+    const activeRequest = activeGamesRequestRef.current
+    if (
+      activeRequest?.date === date &&
+      !activeRequest.controller.signal.aborted
+    ) {
+      return
+    }
+    activeRequest?.controller.abort()
+
+    const controller = new AbortController()
+    activeGamesRequestRef.current = { date, controller }
     const requestId = ++gamesRequestIdRef.current
 
     try {
-      setIsLoadingGames(true)
-      setGamesError('')
-      setGames([])
+      if (mode === 'initial') {
+        setIsLoadingGames(true)
+        setGamesError('')
+        setGames([])
+      }
 
       const gameResponse = await apiFetch(
         `/api/games?date=${encodeURIComponent(date)}`,
-        { signal },
+        { signal: controller.signal },
       )
       if (!gameResponse.ok) {
         throw new Error('경기 정보를 불러오지 못했습니다.')
@@ -809,22 +846,39 @@ export function KboDashboard() {
         },
       )
 
-      if (requestId === gamesRequestIdRef.current) {
+      if (
+        !controller.signal.aborted &&
+        requestId === gamesRequestIdRef.current
+      ) {
         setGames(dashboardGames)
+        setGamesError('')
+        gamesPollingStateRef.current = {
+          date,
+          enabled: shouldPollGames(date, dashboardGames),
+        }
       }
     } catch (error) {
-      if (signal?.aborted) return
+      if (controller.signal.aborted) return
       if (requestId === gamesRequestIdRef.current) {
         console.error(error)
-        setGames([])
-        setGamesError('경기 정보를 불러오지 못했습니다.')
+        if (mode === 'initial') {
+          setGames([])
+          setGamesError('경기 정보를 불러오지 못했습니다.')
+        }
       }
     } finally {
-      if (requestId === gamesRequestIdRef.current && !signal?.aborted) {
+      if (activeGamesRequestRef.current?.controller === controller) {
+        activeGamesRequestRef.current = null
+      }
+      if (
+        mode === 'initial' &&
+        requestId === gamesRequestIdRef.current &&
+        !controller.signal.aborted
+      ) {
         setIsLoadingGames(false)
       }
     }
-  }
+  }, [])
 
   useEffect(() => {
     if (isAuthLoading) return
@@ -837,11 +891,46 @@ export function KboDashboard() {
   }, [isAuthLoading, user?.id])
 
   useEffect(() => {
-    const controller = new AbortController()
-    void loadGames(selectedDate, controller.signal)
+    gamesPollingStateRef.current = {
+      date: selectedDate,
+      enabled: true,
+    }
+    void loadGames(selectedDate, 'initial')
 
-    return () => controller.abort()
-  }, [selectedDate])
+    const pollCurrentDate = () => {
+      const pollingState = gamesPollingStateRef.current
+      if (
+        document.visibilityState !== 'visible' ||
+        pollingState.date !== selectedDate ||
+        !pollingState.enabled
+      ) {
+        return
+      }
+
+      void loadGames(selectedDate, 'refresh')
+    }
+
+    const intervalId = window.setInterval(
+      pollCurrentDate,
+      GAMES_POLLING_INTERVAL_MS,
+    )
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') pollCurrentDate()
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.clearInterval(intervalId)
+      document.removeEventListener(
+        'visibilitychange',
+        handleVisibilityChange,
+      )
+      const activeRequest = activeGamesRequestRef.current
+      if (activeRequest?.date === selectedDate) {
+        activeRequest.controller.abort()
+      }
+    }
+  }, [loadGames, selectedDate])
 
   return (
     <div className="min-h-screen bg-background text-foreground">
