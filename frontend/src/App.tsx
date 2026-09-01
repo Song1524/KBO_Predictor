@@ -5,12 +5,14 @@ import { MyPage } from '@/components/my-page'
 import { AdminPage } from '@/components/admin-page'
 import { StandingsPage } from '@/components/standings-page'
 import { RankingsPage } from '@/components/rankings-page'
+import { GameDetailPage } from '@/components/game-detail-page'
 
 function App() {
   return (
     <AuthProvider>
       <Routes>
         <Route path="/" element={<KboDashboard />} />
+        <Route path="/games/:gameId" element={<GameDetailPage />} />
         <Route path="/mypage" element={<MyPage />} />
         <Route path="/standings" element={<StandingsPage />} />
         <Route path="/rankings" element={<RankingsPage />} />
