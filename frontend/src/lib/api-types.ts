@@ -111,3 +111,38 @@ export type PointHistoryApiResponse = {
   description: string
   createdAt: string
 }
+
+export type CommunityPostListItemApiResponse = {
+  id: number
+  title: string
+  authorId: number
+  authorNickname: string
+  viewCount: number
+  commentCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type CommunityPostApiResponse = CommunityPostListItemApiResponse & {
+  content: string
+}
+
+export type CommunityCommentApiResponse = {
+  id: number
+  postId: number
+  authorId: number
+  authorNickname: string
+  content: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type CommunityPageApiResponse<T> = {
+  content: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  first: boolean
+  last: boolean
+}

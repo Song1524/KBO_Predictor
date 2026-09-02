@@ -36,6 +36,12 @@ public class SecurityConfig {
             "/api/rankings"
     };
 
+    private static final String[] PUBLIC_COMMUNITY_READ_ENDPOINTS = {
+            "/api/community/posts",
+            "/api/community/posts/*",
+            "/api/community/posts/*/comments"
+    };
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -102,8 +108,35 @@ public class SecurityConfig {
                                 PUBLIC_READ_ENDPOINTS
                         )
                         .permitAll()
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                PUBLIC_COMMUNITY_READ_ENDPOINTS
+                        )
+                        .permitAll()
+                        .requestMatchers(
+                                HttpMethod.HEAD,
+                                PUBLIC_COMMUNITY_READ_ENDPOINTS
+                        )
+                        .permitAll()
                         .requestMatchers("/api/admin/**")
                         .hasRole("ADMIN")
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/community/posts",
+                                "/api/community/posts/*/comments"
+                        )
+                        .authenticated()
+                        .requestMatchers(
+                                HttpMethod.PUT,
+                                "/api/community/posts/*"
+                        )
+                        .authenticated()
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/community/posts/*",
+                                "/api/community/comments/*"
+                        )
+                        .authenticated()
                         .requestMatchers(
                                 "/api/auth/me",
                                 "/api/auth/logout",

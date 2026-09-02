@@ -19,7 +19,7 @@ import { useAuth } from '@/auth-context'
 import { AppHeader } from '@/components/app-header'
 import { GamePredictionPanel } from '@/components/game-prediction-panel'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import {
   Card,
   CardAction,
@@ -36,6 +36,7 @@ import type {
   SystemPredictionApiResponse,
 } from '@/lib/game-api-types'
 import { useStandings } from '@/lib/use-standings'
+import { cn } from '@/lib/utils'
 
 const GAMES_POLLING_INTERVAL_MS = 30_000
 
@@ -810,24 +811,30 @@ export function KboDashboard() {
 
           <Card id="community" className="scroll-mt-24">
             <CardHeader>
-              <CardTitle>지금 뜨는 이야기</CardTitle>
+              <CardTitle>팬 커뮤니티</CardTitle>
               <CardDescription>
-                야구팬들이 이야기를 나눌 공간
+                경기 이야기부터 응원까지 함께 나눠보세요.
               </CardDescription>
               <CardAction>
-                <Badge variant="outline">준비 중</Badge>
+                <Badge variant="secondary">OPEN</Badge>
               </CardAction>
             </CardHeader>
-            <CardContent className="flex min-h-56 flex-col items-center justify-center gap-3 py-8 text-center">
-              <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <CardContent className="flex min-h-56 flex-col items-center justify-center gap-4 py-8 text-center">
+              <span className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
                 <MessageCircle className="size-5" aria-hidden="true" />
               </span>
               <div>
-                <p className="text-sm font-semibold">커뮤니티 준비 중</p>
+                <p className="text-base font-bold">오늘 경기를 함께 이야기해요</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  팬들과 이야기를 나눌 공간을 준비하고 있습니다.
+                  게시글과 댓글로 KBO 팬들과 의견을 나눌 수 있습니다.
                 </p>
               </div>
+              <Link
+                to="/community"
+                className={cn(buttonVariants({ variant: 'outline' }))}
+              >
+                커뮤니티 둘러보기
+              </Link>
             </CardContent>
           </Card>
         </section>

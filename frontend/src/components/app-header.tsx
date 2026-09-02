@@ -173,9 +173,13 @@ export function AppHeader() {
               랭킹
             </Link>
             <Link
-              to="/#community"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground"
-              aria-label="커뮤니티 준비 중 영역으로 이동"
+              to="/community"
+              className={cn(
+                'text-sm font-medium hover:text-foreground',
+                location.pathname.startsWith('/community')
+                  ? 'font-semibold text-primary'
+                  : 'text-muted-foreground',
+              )}
             >
               커뮤니티
             </Link>
