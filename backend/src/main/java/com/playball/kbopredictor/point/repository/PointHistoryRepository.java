@@ -4,6 +4,7 @@ import com.playball.kbopredictor.point.entity.PointHistory;
 import com.playball.kbopredictor.point.entity.PointHistoryType;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,4 +25,10 @@ public interface PointHistoryRepository
     );
 
     boolean existsByReversalOfId(Long pointHistoryId);
+
+    boolean existsByUserIdAndBonusDateAndType(
+            Long userId,
+            LocalDate bonusDate,
+            PointHistoryType type
+    );
 }

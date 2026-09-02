@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Bell, CircleUserRound, Search, ShieldCheck } from 'lucide-react'
+import { Bell, CircleUserRound, Gift, Search, ShieldCheck } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth-context'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -23,6 +23,14 @@ export function AppHeader() {
   const [teams, setTeams] = useState<TeamApiResponse[]>([])
   const [teamsError, setTeamsError] = useState('')
   const [authError, setAuthError] = useState('')
+  const [loginBonusPoints, setLoginBonusPoints] = useState(0)
+
+  useEffect(() => {
+    if (loginBonusPoints <= 0) return
+
+    const timer = window.setTimeout(() => setLoginBonusPoints(0), 3500)
+    return () => window.clearTimeout(timer)
+  }, [loginBonusPoints])
 
   useEffect(() => {
     if (!isAuthOpen || mode !== 'signup' || teams.length > 0) return
@@ -74,11 +82,13 @@ export function AppHeader() {
     setAuthError('')
 
     if (mode === 'login') {
-      const errorMessage = await login(email, password)
+      const { errorMessage, dailyLoginBonusPoints } =
+        await login(email, password)
       if (errorMessage) {
         setAuthError(errorMessage)
         return
       }
+      setLoginBonusPoints(dailyLoginBonusPoints)
       closeAndReset()
       return
     }
@@ -107,6 +117,15 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
+      {loginBonusPoints > 0 && (
+        <div
+          role="status"
+          className="fixed top-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full border bg-background px-4 py-2.5 text-sm font-bold text-primary shadow-lg"
+        >
+          <Gift className="size-4" />
+          오늘의 로그인 보너스 +{loginBonusPoints.toLocaleString()}P
+        </div>
+      )}
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 lg:px-6">
         <div className="flex items-center gap-8">
           <Link

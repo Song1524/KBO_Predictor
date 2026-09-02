@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -91,6 +92,41 @@ public class PointService {
                 PointHistoryType.SIGNUP_BONUS,
                 "회원가입 축하 포인트"
         );
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void grantDailyLoginBonus(
+            User user,
+            int points,
+            LocalDate bonusDate
+    ) {
+        if (points <= 0) {
+            throw new IllegalArgumentException(
+                    "Daily login bonus points must be greater than zero."
+            );
+        }
+        if (user.getPoint() == null) {
+            throw new IllegalStateException("사용자 포인트 잔액이 없습니다.");
+        }
+
+        final int balanceAfter;
+        try {
+            balanceAfter = Math.addExact(user.getPoint(), points);
+        } catch (ArithmeticException exception) {
+            throw new IllegalStateException(
+                    "포인트 잔액이 허용 범위를 초과했습니다.",
+                    exception
+            );
+        }
+
+        user.changePoint(points);
+        pointHistoryRepository.save(PointHistory.createDailyLoginBonus(
+                user,
+                points,
+                balanceAfter,
+                bonusDate,
+                LocalDateTime.now(clock)
+        ));
     }
 
     @Transactional(propagation = Propagation.MANDATORY)

@@ -9,6 +9,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -26,6 +27,10 @@ import java.time.LocalDateTime;
                 @UniqueConstraint(
                         name = "uk_point_histories_reversal_of",
                         columnNames = "reversal_of_id"
+                ),
+                @UniqueConstraint(
+                        name = "uk_point_histories_user_bonus_date_type",
+                        columnNames = {"user_id", "bonus_date", "type"}
                 )
         }
 )
@@ -59,6 +64,9 @@ public class PointHistory {
 
     @Column(name = "settlement_revision", nullable = false)
     private int settlementRevision;
+
+    @Column(name = "bonus_date")
+    private LocalDate bonusDate;
 
     @Column(name = "point_change", nullable = false)
     private int pointChange;
@@ -96,7 +104,8 @@ public class PointHistory {
                 balanceAfter,
                 type,
                 description,
-                createdAt
+                createdAt,
+                null
         );
     }
 
@@ -112,6 +121,59 @@ public class PointHistory {
             String description,
             LocalDateTime createdAt
     ) {
+        return create(
+                user,
+                game,
+                userPrediction,
+                settlement,
+                reversalOf,
+                pointChange,
+                balanceAfter,
+                type,
+                description,
+                createdAt,
+                null
+        );
+    }
+
+    public static PointHistory createDailyLoginBonus(
+            User user,
+            int pointChange,
+            int balanceAfter,
+            LocalDate bonusDate,
+            LocalDateTime createdAt
+    ) {
+        if (bonusDate == null) {
+            throw new IllegalArgumentException("Bonus date is required.");
+        }
+        return create(
+                user,
+                null,
+                null,
+                null,
+                null,
+                pointChange,
+                balanceAfter,
+                PointHistoryType.DAILY_LOGIN_BONUS,
+                "일일 로그인 보너스",
+                createdAt,
+                bonusDate
+        );
+    }
+
+    private static PointHistory create(
+            User user,
+            Game game,
+            UserPrediction userPrediction,
+            GameSettlement settlement,
+            PointHistory reversalOf,
+            int pointChange,
+            int balanceAfter,
+            PointHistoryType type,
+            String description,
+            LocalDateTime createdAt,
+            LocalDate bonusDate
+    ) {
         PointHistory history = new PointHistory();
         history.user = user;
         history.game = game;
@@ -121,6 +183,7 @@ public class PointHistory {
         history.settlementRevision = settlement == null
                 ? 0
                 : settlement.getRevision();
+        history.bonusDate = bonusDate;
         history.pointChange = pointChange;
         history.balanceAfter = balanceAfter;
         history.type = type;

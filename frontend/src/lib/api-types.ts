@@ -11,6 +11,7 @@ export type PointHistoryType =
   | 'PREDICTION_REWARD'
   | 'GAME_CANCEL_REFUND'
   | 'SIGNUP_BONUS'
+  | 'DAILY_LOGIN_BONUS'
 
 export type TeamApiResponse = {
   id: number
@@ -76,6 +77,11 @@ export type UserApiResponse = {
   point: number
   role: string
   status: string
+}
+
+export type LoginApiResponse = UserApiResponse & {
+  dailyLoginBonusGranted: boolean
+  dailyLoginBonusPoints: number
 }
 
 export type UserPredictionApiResponse = {

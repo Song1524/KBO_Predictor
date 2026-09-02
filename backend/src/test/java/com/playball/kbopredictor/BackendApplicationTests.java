@@ -42,10 +42,10 @@ class BackendApplicationTests {
     }
 
     @Test
-    void flywayIsAtLeastVersionSixteenAndHasNoPendingMigration() {
+    void flywayIsAtLeastVersionSeventeenAndHasNoPendingMigration() {
         assertThat(flyway.info().current()).isNotNull();
         assertThat(flyway.info().current().getVersion())
-                .isGreaterThanOrEqualTo(MigrationVersion.fromVersion("16"));
+                .isGreaterThanOrEqualTo(MigrationVersion.fromVersion("17"));
         assertThat(flyway.info().pending()).isEmpty();
     }
 

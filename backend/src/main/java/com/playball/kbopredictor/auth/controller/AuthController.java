@@ -1,7 +1,10 @@
 package com.playball.kbopredictor.auth.controller;
 
+import com.playball.kbopredictor.auth.dto.DailyLoginBonusResult;
 import com.playball.kbopredictor.auth.dto.LoginRequest;
+import com.playball.kbopredictor.auth.dto.LoginResponse;
 import com.playball.kbopredictor.auth.dto.SignupRequest;
+import com.playball.kbopredictor.auth.service.DailyLoginBonusService;
 import com.playball.kbopredictor.auth.service.SignupService;
 import com.playball.kbopredictor.auth.security.AuthenticatedUser;
 import com.playball.kbopredictor.user.dto.UserResponse;
@@ -43,6 +46,7 @@ public class AuthController {
     private final SecurityContextRepository securityContextRepository;
     private final UserService userService;
     private final SignupService signupService;
+    private final DailyLoginBonusService dailyLoginBonusService;
 
     @GetMapping("/csrf")
     public ResponseEntity<Void> csrf(CsrfToken csrfToken) {
@@ -51,7 +55,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<UserResponse> login(
+    public ResponseEntity<LoginResponse> login(
             @Valid @RequestBody LoginRequest request,
             HttpServletRequest servletRequest,
             HttpServletResponse servletResponse
@@ -64,12 +68,17 @@ public class AuthController {
                     )
             );
 
-            establishSession(authentication, servletRequest, servletResponse);
-
             AuthenticatedUser principal =
                     (AuthenticatedUser) authentication.getPrincipal();
+            DailyLoginBonusResult bonus =
+                    dailyLoginBonusService.grantIfEligible(
+                            principal.getUserId()
+                    );
+            UserResponse user = userService.getUser(principal.getUserId());
+
+            establishSession(authentication, servletRequest, servletResponse);
             return ResponseEntity.ok(
-                    userService.getUser(principal.getUserId())
+                    LoginResponse.from(user, bonus)
             );
         } catch (AuthenticationException exception) {
             log.warn(

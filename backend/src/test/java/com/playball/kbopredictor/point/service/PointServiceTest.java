@@ -131,6 +131,26 @@ class PointServiceTest {
         assertThat(history.getUserPrediction()).isNull();
     }
 
+    @Test
+    void dailyLoginBonusCreatesDatedHistoryWithActualBalance() {
+        User user = TestEntities.user(1L, 1_000);
+        LocalDate bonusDate = LocalDate.of(2026, 8, 10);
+
+        service.grantDailyLoginBonus(user, 50, bonusDate);
+
+        PointHistory history = savedHistory();
+        assertThat(user.getPoint()).isEqualTo(1_050);
+        assertThat(history.getType())
+                .isEqualTo(PointHistoryType.DAILY_LOGIN_BONUS);
+        assertThat(history.getPointChange()).isEqualTo(50);
+        assertThat(history.getBalanceAfter()).isEqualTo(1_050);
+        assertThat(history.getBonusDate()).isEqualTo(bonusDate);
+        assertThat(history.getDescription()).isEqualTo("일일 로그인 보너스");
+        assertThat(history.getGame()).isNull();
+        assertThat(history.getUserPrediction()).isNull();
+        assertThat(history.getCreatedAt()).isEqualTo(NOW);
+    }
+
     private UserPrediction prediction(
             User user,
             PredictionOutcome outcome,

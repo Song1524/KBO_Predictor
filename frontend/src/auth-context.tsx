@@ -5,14 +5,23 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { SignupRequest, UserApiResponse } from '@/lib/api-types'
+import type {
+  LoginApiResponse,
+  SignupRequest,
+  UserApiResponse,
+} from '@/lib/api-types'
 import { apiFetch } from '@/lib/api-client'
+
+type LoginResult = {
+  errorMessage: string | null
+  dailyLoginBonusPoints: number
+}
 
 type AuthContextValue = {
   user: UserApiResponse | null
   isLoading: boolean
   isAuthenticating: boolean
-  login: (email: string, password: string) => Promise<string | null>
+  login: (email: string, password: string) => Promise<LoginResult>
   signup: (request: SignupRequest) => Promise<string | null>
   logout: () => Promise<void>
   refreshUser: () => Promise<boolean>
@@ -61,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (
     email: string,
     password: string,
-  ): Promise<string | null> => {
+  ): Promise<LoginResult> => {
     try {
       setIsAuthenticating(true)
       const response = await apiFetch('/api/auth/login', {
@@ -73,16 +82,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const responseBody = await response.json().catch(() => null)
 
       if (!response.ok) {
-        return responseBody?.detail ??
-          responseBody?.message ??
-          '로그인에 실패했습니다.'
+        return {
+          errorMessage: responseBody?.detail ??
+            responseBody?.message ??
+            '로그인에 실패했습니다.',
+          dailyLoginBonusPoints: 0,
+        }
       }
 
-      setUser(responseBody as UserApiResponse)
-      return null
+      const loginResponse = responseBody as LoginApiResponse
+      setUser(loginResponse)
+      return {
+        errorMessage: null,
+        dailyLoginBonusPoints:
+          loginResponse.dailyLoginBonusGranted &&
+          Number.isFinite(loginResponse.dailyLoginBonusPoints)
+            ? loginResponse.dailyLoginBonusPoints
+            : 0,
+      }
     } catch (error) {
       console.error(error)
-      return '로그인 요청 중 오류가 발생했습니다.'
+      return {
+        errorMessage: '로그인 요청 중 오류가 발생했습니다.',
+        dailyLoginBonusPoints: 0,
+      }
     } finally {
       setIsAuthenticating(false)
     }

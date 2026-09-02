@@ -1,11 +1,13 @@
 package com.playball.kbopredictor.auth;
 
 import com.playball.kbopredictor.auth.controller.AuthController;
+import com.playball.kbopredictor.auth.dto.DailyLoginBonusResult;
 import com.playball.kbopredictor.auth.security.AuthenticatedUser;
 import com.playball.kbopredictor.auth.security.KboUserDetailsService;
 import com.playball.kbopredictor.auth.dto.SignupRequest;
 import com.playball.kbopredictor.auth.exception.SignupBadRequestException;
 import com.playball.kbopredictor.auth.exception.SignupConflictException;
+import com.playball.kbopredictor.auth.service.DailyLoginBonusService;
 import com.playball.kbopredictor.auth.service.SignupService;
 import com.playball.kbopredictor.common.config.SecurityConfig;
 import com.playball.kbopredictor.point.controller.PointController;
@@ -68,6 +70,9 @@ class AuthenticationWebTest {
 
     @MockitoBean
     private SignupService signupService;
+
+    @MockitoBean
+    private DailyLoginBonusService dailyLoginBonusService;
 
     @MockitoBean
     private UserPredictionService userPredictionService;
@@ -186,7 +191,9 @@ class AuthenticationWebTest {
         when(userDetailsService.loadUserByUsername("test@test.com"))
                 .thenReturn(principal);
         when(userService.getUser(AUTHENTICATED_USER_ID))
-                .thenReturn(userResponse());
+                .thenReturn(userResponse(950));
+        when(dailyLoginBonusService.grantIfEligible(AUTHENTICATED_USER_ID))
+                .thenReturn(DailyLoginBonusResult.granted(50));
 
         MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
                         .with(csrf())
@@ -199,6 +206,9 @@ class AuthenticationWebTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(AUTHENTICATED_USER_ID))
+                .andExpect(jsonPath("$.point").value(950))
+                .andExpect(jsonPath("$.dailyLoginBonusGranted").value(true))
+                .andExpect(jsonPath("$.dailyLoginBonusPoints").value(50))
                 .andReturn();
 
         MockHttpSession session =
@@ -225,6 +235,8 @@ class AuthenticationWebTest {
                                 }
                                 """))
                 .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(dailyLoginBonusService);
     }
 
     @Test
@@ -282,6 +294,7 @@ class AuthenticationWebTest {
         verify(userPredictionService).createPrediction(
                 eq(newUserId), any(UserPredictionRequest.class)
         );
+        verifyNoInteractions(dailyLoginBonusService);
     }
 
     @Test
@@ -336,6 +349,8 @@ class AuthenticationWebTest {
                 .thenReturn(authenticatedUser(encodedPassword));
         when(userService.getUser(AUTHENTICATED_USER_ID))
                 .thenReturn(userResponse());
+        when(dailyLoginBonusService.grantIfEligible(AUTHENTICATED_USER_ID))
+                .thenReturn(DailyLoginBonusResult.notGranted());
 
         MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
                         .with(csrf())
@@ -379,13 +394,17 @@ class AuthenticationWebTest {
     }
 
     private UserResponse userResponse() {
+        return userResponse(900);
+    }
+
+    private UserResponse userResponse(int point) {
         return new UserResponse(
                 AUTHENTICATED_USER_ID,
                 "test@test.com",
                 "인증 사용자",
                 null,
                 null,
-                900,
+                point,
                 "USER",
                 "ACTIVE"
         );

@@ -1,8 +1,10 @@
 package com.playball.kbopredictor.auth;
 
 import com.playball.kbopredictor.auth.controller.AuthController;
+import com.playball.kbopredictor.auth.dto.DailyLoginBonusResult;
 import com.playball.kbopredictor.auth.security.AuthenticatedUser;
 import com.playball.kbopredictor.auth.security.KboUserDetailsService;
+import com.playball.kbopredictor.auth.service.DailyLoginBonusService;
 import com.playball.kbopredictor.auth.service.SignupService;
 import com.playball.kbopredictor.common.config.SecurityConfig;
 import com.playball.kbopredictor.user.dto.UserResponse;
@@ -46,6 +48,8 @@ class CsrfCookieIntegrationTest {
     private UserService userService;
     @MockitoBean
     private SignupService signupService;
+    @MockitoBean
+    private DailyLoginBonusService dailyLoginBonusService;
 
     @Test
     void issuedCookieAndMatchingHeaderAllowLogin() throws Exception {
@@ -68,6 +72,8 @@ class CsrfCookieIntegrationTest {
                 "USER",
                 "ACTIVE"
         ));
+        when(dailyLoginBonusService.grantIfEligible(USER_ID))
+                .thenReturn(DailyLoginBonusResult.notGranted());
 
         MvcResult csrfResult = mockMvc.perform(get("/api/auth/csrf"))
                 .andExpect(status().isNoContent())
