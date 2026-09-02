@@ -1,6 +1,8 @@
 package com.playball.kbopredictor.game.controller;
 
 import com.playball.kbopredictor.game.dto.GameResponse;
+import com.playball.kbopredictor.game.dto.GameStartingPitchersResponse;
+import com.playball.kbopredictor.game.service.GameStartingPitcherService;
 import com.playball.kbopredictor.game.service.GameService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -16,6 +18,7 @@ import java.util.List;
 public class GameController {
 
     private final GameService gameService;
+    private final GameStartingPitcherService gameStartingPitcherService;
 
     @GetMapping
     public ResponseEntity<List<GameResponse>> getGamesByDate(
@@ -32,6 +35,15 @@ public class GameController {
     ) {
         return ResponseEntity.ok(
                 gameService.getGame(gameId)
+        );
+    }
+
+    @GetMapping("/{gameId}/starting-pitchers")
+    public ResponseEntity<GameStartingPitchersResponse> getStartingPitchers(
+            @PathVariable Long gameId
+    ) {
+        return ResponseEntity.ok(
+                gameStartingPitcherService.getByGameId(gameId)
         );
     }
 }

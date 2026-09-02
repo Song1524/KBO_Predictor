@@ -3,9 +3,12 @@ package com.playball.kbopredictor.game.controller;
 import com.playball.kbopredictor.auth.security.KboUserDetailsService;
 import com.playball.kbopredictor.common.config.SecurityConfig;
 import com.playball.kbopredictor.game.dto.GameResponse;
+import com.playball.kbopredictor.game.dto.GameStartingPitchersResponse;
+import com.playball.kbopredictor.game.dto.StartingPitcherDetailResponse;
 import com.playball.kbopredictor.game.entity.Game;
 import com.playball.kbopredictor.game.entity.GameStatus;
 import com.playball.kbopredictor.game.service.GameService;
+import com.playball.kbopredictor.game.service.GameStartingPitcherService;
 import com.playball.kbopredictor.player.entity.Player;
 import com.playball.kbopredictor.stats.entity.StartingPitcher;
 import com.playball.kbopredictor.stats.entity.StartingPitcherSide;
@@ -19,6 +22,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.lang.reflect.Constructor;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -41,6 +45,9 @@ class GameControllerTest {
 
     @MockitoBean
     private GameService gameService;
+
+    @MockitoBean
+    private GameStartingPitcherService gameStartingPitcherService;
 
     @Test
     void gamesApiReturnsStartersForTheCorrectSides() throws Exception {
@@ -97,6 +104,37 @@ class GameControllerTest {
                 .andExpect(jsonPath("$[0].awayScore").value(3))
                 .andExpect(jsonPath("$[0].result").doesNotExist())
                 .andExpect(jsonPath("$[0].winnerTeamId").doesNotExist());
+    }
+
+    @Test
+    void startingPitchersApiIsPublicAndReturnsBothSidesWithStats()
+            throws Exception {
+        when(gameStartingPitcherService.getByGameId(2L)).thenReturn(
+                new GameStartingPitchersResponse(
+                        2L,
+                        new StartingPitcherDetailResponse(
+                                101L, "김민준", true, 2026,
+                                LocalDate.of(2026, 8, 12),
+                                new BigDecimal("3.72"), 9, 7,
+                                "120 1/3", new BigDecimal("1.24")
+                        ),
+                        new StartingPitcherDetailResponse(
+                                102L, "나균안", false, null,
+                                null, null, null, null, null, null
+                        )
+                )
+        );
+
+        mockMvc.perform(get("/api/games/2/starting-pitchers"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.gameId").value(2))
+                .andExpect(jsonPath("$.home.playerName").value("김민준"))
+                .andExpect(jsonPath("$.home.statsAvailable").value(true))
+                .andExpect(jsonPath("$.home.era").value(3.72))
+                .andExpect(jsonPath("$.home.wins").value(9))
+                .andExpect(jsonPath("$.home.innings").value("120 1/3"))
+                .andExpect(jsonPath("$.away.playerName").value("나균안"))
+                .andExpect(jsonPath("$.away.statsAvailable").value(false));
     }
 
     private StartingPitcher starter(

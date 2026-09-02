@@ -29,7 +29,9 @@ import { apiFetch } from '@/lib/api-client'
 import type { UserPredictionApiResponse } from '@/lib/api-types'
 import type {
   GameApiResponse,
+  GameStartingPitchersApiResponse,
   GameStatus,
+  StartingPitcherDetailApiResponse,
   SystemPredictionApiResponse,
   TeamStatApiResponse,
 } from '@/lib/game-api-types'
@@ -280,10 +282,16 @@ function StartingPitcherComparison({
   game,
   homeName,
   awayName,
+  startingPitchers,
+  isLoading,
+  error,
 }: {
   game: GameApiResponse
   homeName: string
   awayName: string
+  startingPitchers: GameStartingPitchersApiResponse | null
+  isLoading: boolean
+  error: string
 }) {
   return (
     <section className="self-start rounded-2xl border bg-card p-4 sm:p-5">
@@ -296,14 +304,21 @@ function StartingPitcherComparison({
         <PitcherSide
           side="원정"
           teamName={awayName}
-          pitcherName={game.awayStartingPitcherName}
+          fallbackPitcherName={game.awayStartingPitcherName}
+          pitcher={startingPitchers?.away ?? null}
+          isLoading={isLoading}
         />
         <PitcherSide
           side="홈"
           teamName={homeName}
-          pitcherName={game.homeStartingPitcherName}
+          fallbackPitcherName={game.homeStartingPitcherName}
+          pitcher={startingPitchers?.home ?? null}
+          isLoading={isLoading}
         />
       </div>
+      {error && (
+        <p className="mt-3 text-xs text-destructive">{error}</p>
+      )}
     </section>
   )
 }
@@ -311,23 +326,75 @@ function StartingPitcherComparison({
 function PitcherSide({
   side,
   teamName,
-  pitcherName,
+  fallbackPitcherName,
+  pitcher,
+  isLoading,
 }: {
   side: string
   teamName: string
-  pitcherName: string | null
+  fallbackPitcherName: string | null
+  pitcher: StartingPitcherDetailApiResponse | null
+  isLoading: boolean
 }) {
+  const pitcherName = pitcher?.playerName ?? fallbackPitcherName
+
   return (
-    <div className="min-w-0 rounded-xl bg-muted/45 p-3 text-center">
+    <div className="min-w-0 rounded-xl bg-muted/45 p-3">
       <UserRound className="mx-auto size-5 text-primary" />
-      <p className="mt-2 text-[11px] font-medium text-muted-foreground">
+      <p className="mt-2 truncate text-center text-[11px] font-medium text-muted-foreground" title={teamName}>
         {side} · {teamName}
       </p>
-      <p className="mt-0.5 truncate text-sm font-black sm:text-base" title={pitcherName ?? '선발 미정'}>
+      <p className="mt-0.5 truncate text-center text-sm font-black sm:text-base" title={pitcherName ?? '선발 미정'}>
         {normalizeText(pitcherName, '선발 미정')}
       </p>
+
+      {isLoading ? (
+        <p className="mt-4 border-t pt-3 text-center text-xs text-muted-foreground">
+          기록을 확인하는 중입니다.
+        </p>
+      ) : pitcher?.statsAvailable ? (
+        <div className="mt-3 border-t pt-2">
+          <PitcherStatRow label="ERA" value={formatDecimal(pitcher.era)} />
+          <PitcherStatRow
+            label="승패"
+            value={formatPitcherRecord(pitcher.wins, pitcher.losses)}
+          />
+          <PitcherStatRow label="WHIP" value={formatDecimal(pitcher.whip)} />
+          <PitcherStatRow
+            label="이닝"
+            value={normalizeText(pitcher.innings, '-')}
+          />
+          <p className="mt-2 text-right text-[10px] text-muted-foreground">
+            {pitcher.season ? `${pitcher.season} 시즌 · ` : ''}
+            {pitcher.statDate ? `${pitcher.statDate} 기준` : ''}
+          </p>
+        </div>
+      ) : (
+        <p className="mt-4 border-t pt-3 text-center text-xs text-muted-foreground">
+          {pitcherName ? '시즌 기록 없음' : '선발 발표 전'}
+        </p>
+      )}
     </div>
   )
+}
+
+function PitcherStatRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2 py-1 text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <strong className="min-w-0 truncate font-mono text-foreground" title={value}>
+        {value}
+      </strong>
+    </div>
+  )
+}
+
+function formatPitcherRecord(
+  wins: number | null,
+  losses: number | null,
+) {
+  if (wins == null && losses == null) return '-'
+  return `${wins ?? '-'}승 ${losses ?? '-'}패`
 }
 
 function TeamStatComparison({
@@ -440,6 +507,22 @@ async function fetchTeamStat(
   return response.json() as Promise<TeamStatApiResponse>
 }
 
+async function fetchStartingPitchers(
+  gameId: number,
+  signal: AbortSignal,
+): Promise<GameStartingPitchersApiResponse> {
+  const response = await apiFetch(`/api/games/${gameId}/starting-pitchers`, {
+    signal,
+  })
+  if (!response.ok) throw new Error('선발투수 기록을 불러오지 못했습니다.')
+
+  const data = await response.json() as GameStartingPitchersApiResponse
+  if (data.gameId !== gameId) {
+    throw new Error('선발투수 기록을 확인할 수 없습니다.')
+  }
+  return data
+}
+
 export function GameDetailPage() {
   const { gameId: gameIdParam } = useParams()
   const { user, isLoading: isAuthLoading, refreshUser } = useAuth()
@@ -448,13 +531,17 @@ export function GameDetailPage() {
   const [game, setGame] = useState<GameApiResponse | null>(null)
   const [homeStat, setHomeStat] = useState<TeamStatApiResponse | null>(null)
   const [awayStat, setAwayStat] = useState<TeamStatApiResponse | null>(null)
+  const [startingPitchers, setStartingPitchers] =
+    useState<GameStartingPitchersApiResponse | null>(null)
   const [existingPrediction, setExistingPrediction] =
     useState<UserPredictionApiResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingStats, setIsLoadingStats] = useState(false)
+  const [isLoadingPitchers, setIsLoadingPitchers] = useState(false)
   const [isLoadingPrediction, setIsLoadingPrediction] = useState(false)
   const [error, setError] = useState('')
   const [statsError, setStatsError] = useState('')
+  const [pitchersError, setPitchersError] = useState('')
 
   useEffect(() => {
     if (!validGameId) {
@@ -470,6 +557,8 @@ export function GameDetailPage() {
         setError('')
         setHomeStat(null)
         setAwayStat(null)
+        setStartingPitchers(null)
+        setPitchersError('')
 
         const response = await apiFetch(`/api/games/${gameId}`, {
           signal: controller.signal,
@@ -490,17 +579,27 @@ export function GameDetailPage() {
         setGame(data)
         setIsLoading(false)
         setIsLoadingStats(true)
-        const [homeResult, awayResult] = await Promise.allSettled([
+        setIsLoadingPitchers(true)
+        const [homeResult, awayResult, pitchersResult] = await Promise.allSettled([
           fetchTeamStat(data.homeTeamId, controller.signal),
           fetchTeamStat(data.awayTeamId, controller.signal),
+          fetchStartingPitchers(gameId, controller.signal),
         ])
         if (controller.signal.aborted) return
 
         setHomeStat(homeResult.status === 'fulfilled' ? homeResult.value : null)
         setAwayStat(awayResult.status === 'fulfilled' ? awayResult.value : null)
+        setStartingPitchers(
+          pitchersResult.status === 'fulfilled' ? pitchersResult.value : null,
+        )
         setStatsError(
           homeResult.status === 'rejected' || awayResult.status === 'rejected'
             ? '일부 팀 성적을 불러오지 못했습니다.'
+            : '',
+        )
+        setPitchersError(
+          pitchersResult.status === 'rejected'
+            ? '선발투수 기록을 불러오지 못했습니다.'
             : '',
         )
       } catch (loadError) {
@@ -515,6 +614,7 @@ export function GameDetailPage() {
         if (!controller.signal.aborted) {
           setIsLoading(false)
           setIsLoadingStats(false)
+          setIsLoadingPitchers(false)
         }
       }
     }
@@ -659,6 +759,9 @@ export function GameDetailPage() {
                 game={game}
                 homeName={normalizeText(game.homeTeamName, '정보 없음')}
                 awayName={normalizeText(game.awayTeamName, '정보 없음')}
+                startingPitchers={startingPitchers}
+                isLoading={isLoadingPitchers}
+                error={pitchersError}
               />
               <TeamStatComparison
                 homeName={normalizeText(game.homeTeamName, '정보 없음')}

@@ -98,3 +98,22 @@ export type TeamStatApiResponse = {
   era: number | null
   collectedAt: string | null
 }
+
+export type StartingPitcherDetailApiResponse = {
+  playerId: number
+  playerName: string
+  statsAvailable: boolean
+  season: number | null
+  statDate: string | null
+  era: number | null
+  wins: number | null
+  losses: number | null
+  innings: string | null
+  whip: number | null
+}
+
+export type GameStartingPitchersApiResponse = {
+  gameId: number
+  home: StartingPitcherDetailApiResponse | null
+  away: StartingPitcherDetailApiResponse | null
+}

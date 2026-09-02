@@ -29,6 +29,7 @@ public class SecurityConfig {
             "/api/games/*",
             "/api/games/*/prediction",
             "/api/games/*/odds",
+            "/api/games/*/starting-pitchers",
             "/api/teams",
             "/api/teams/*/stats/latest",
             "/api/standings",
