@@ -14,17 +14,39 @@ import java.util.Optional;
 public interface CommunityCommentRepository
         extends JpaRepository<CommunityComment, Long> {
 
-    @EntityGraph(attributePaths = "user")
-    List<CommunityComment> findByPostIdAndStatusOrderByCreatedAtAscIdAsc(
-            Long postId,
-            CommunityContentStatus status
+    @EntityGraph(attributePaths = {"user", "parent"})
+    @Query("""
+            select comment
+            from CommunityComment comment
+            where comment.post.id = :postId
+              and (
+                    comment.status = :activeStatus
+                    or (
+                        comment.parent is null
+                        and exists (
+                            select reply.id
+                            from CommunityComment reply
+                            where reply.parent = comment
+                              and reply.status = :activeStatus
+                        )
+                    )
+              )
+            order by comment.createdAt asc, comment.id asc
+            """)
+    List<CommunityComment> findVisibleThreadComments(
+            @Param("postId") Long postId,
+            @Param("activeStatus") CommunityContentStatus activeStatus
     );
 
-    @EntityGraph(attributePaths = {"user", "post"})
+    @EntityGraph(attributePaths = {"user", "post", "parent"})
     Optional<CommunityComment> findByIdAndStatus(
             Long id,
             CommunityContentStatus status
     );
+
+    @EntityGraph(attributePaths = {"post", "parent"})
+    @Query("select comment from CommunityComment comment where comment.id = :id")
+    Optional<CommunityComment> findByIdWithPostAndParent(@Param("id") Long id);
 
     long countByPostIdAndStatus(
             Long postId,

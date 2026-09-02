@@ -2,6 +2,7 @@ package com.playball.kbopredictor.community.service;
 
 import com.playball.kbopredictor.community.dto.CommunityCommentRequest;
 import com.playball.kbopredictor.community.dto.CommunityCommentResponse;
+import com.playball.kbopredictor.community.dto.CommunityCommentUpdateRequest;
 import com.playball.kbopredictor.community.dto.CommunityPageResponse;
 import com.playball.kbopredictor.community.dto.CommunityPostListItemResponse;
 import com.playball.kbopredictor.community.dto.CommunityPostRequest;
@@ -25,6 +26,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -123,13 +125,29 @@ public class CommunityService {
 
     public List<CommunityCommentResponse> getComments(Long postId) {
         activePost(postId);
-        return commentRepository
-                .findByPostIdAndStatusOrderByCreatedAtAscIdAsc(
+        List<CommunityComment> comments = commentRepository
+                .findVisibleThreadComments(
                         postId,
                         CommunityContentStatus.ACTIVE
-                )
-                .stream()
-                .map(CommunityCommentResponse::from)
+                );
+        Map<Long, List<CommunityComment>> repliesByParent = comments.stream()
+                .filter(CommunityComment::isReply)
+                .collect(Collectors.groupingBy(
+                        comment -> comment.getParent().getId(),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+
+        return comments.stream()
+                .filter(comment -> !comment.isReply())
+                .map(comment -> CommunityCommentResponse.from(
+                        comment,
+                        repliesByParent
+                                .getOrDefault(comment.getId(), List.of())
+                                .stream()
+                                .map(CommunityCommentResponse::from)
+                                .toList()
+                ))
                 .toList();
     }
 
@@ -141,10 +159,15 @@ public class CommunityService {
     ) {
         CommunityPost post = activePost(postId);
         User author = user(authenticatedUserId);
+        CommunityComment parent = replyParent(
+                post,
+                request.parentCommentId()
+        );
         CommunityComment comment = commentRepository.save(
                 CommunityComment.create(
                         post,
                         author,
+                        parent,
                         request.content(),
                         now()
                 )
@@ -153,13 +176,22 @@ public class CommunityService {
     }
 
     @Transactional
+    public CommunityCommentResponse updateComment(
+            Long authenticatedUserId,
+            Long commentId,
+            CommunityCommentUpdateRequest request
+    ) {
+        CommunityComment comment = activeComment(commentId);
+        if (!comment.getUser().getId().equals(authenticatedUserId)) {
+            throw forbidden("본인이 작성한 댓글만 수정할 수 있습니다.");
+        }
+        comment.update(request.content(), now());
+        return CommunityCommentResponse.from(comment);
+    }
+
+    @Transactional
     public void deleteComment(Long authenticatedUserId, Long commentId) {
-        CommunityComment comment = commentRepository
-                .findByIdAndStatus(
-                        commentId,
-                        CommunityContentStatus.ACTIVE
-                )
-                .orElseThrow(() -> notFound("댓글을 찾을 수 없습니다."));
+        CommunityComment comment = activeComment(commentId);
         User actor = user(authenticatedUserId);
         requireOwnerOrAdmin(comment.getUser(), actor, "댓글");
         comment.delete(now());
@@ -171,6 +203,36 @@ public class CommunityService {
                 CommunityContentStatus.ACTIVE
         );
         return CommunityPostResponse.from(post, commentCount);
+    }
+
+    private CommunityComment replyParent(
+            CommunityPost post,
+            Long parentCommentId
+    ) {
+        if (parentCommentId == null) {
+            return null;
+        }
+
+        CommunityComment parent = commentRepository
+                .findByIdWithPostAndParent(parentCommentId)
+                .orElseThrow(() -> notFound("부모 댓글을 찾을 수 없습니다."));
+        if (!parent.getPost().getId().equals(post.getId())) {
+            throw badRequest("같은 게시글의 댓글에만 답글을 작성할 수 있습니다.");
+        }
+        if (parent.isReply()) {
+            throw badRequest("답글에는 다시 답글을 작성할 수 없습니다.");
+        }
+        if (parent.isDeleted()) {
+            throw badRequest("삭제된 댓글에는 답글을 작성할 수 없습니다.");
+        }
+        return parent;
+    }
+
+    private CommunityComment activeComment(Long commentId) {
+        return commentRepository.findByIdAndStatus(
+                commentId,
+                CommunityContentStatus.ACTIVE
+        ).orElseThrow(() -> notFound("댓글을 찾을 수 없습니다."));
     }
 
     private CommunityPost activePost(Long postId) {
@@ -214,5 +276,9 @@ public class CommunityService {
 
     private ResponseStatusException forbidden(String message) {
         return new ResponseStatusException(HttpStatus.FORBIDDEN, message);
+    }
+
+    private ResponseStatusException badRequest(String message) {
+        return new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
     }
 }

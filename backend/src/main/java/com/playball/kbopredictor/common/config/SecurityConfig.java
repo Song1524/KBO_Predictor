@@ -128,7 +128,8 @@ public class SecurityConfig {
                         .authenticated()
                         .requestMatchers(
                                 HttpMethod.PUT,
-                                "/api/community/posts/*"
+                                "/api/community/posts/*",
+                                "/api/community/comments/*"
                         )
                         .authenticated()
                         .requestMatchers(

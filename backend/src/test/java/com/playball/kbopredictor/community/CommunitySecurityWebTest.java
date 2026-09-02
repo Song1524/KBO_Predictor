@@ -92,6 +92,16 @@ class CommunitySecurityWebTest {
                                 {"content": "비로그인 댓글"}
                                 """))
                 .andExpect(status().isUnauthorized());
+        mockMvc.perform(put(
+                        "/api/community/comments/{commentId}",
+                        COMMENT_ID
+                )
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"content": "비로그인 수정"}
+                                """))
+                .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(communityService);
     }
@@ -102,6 +112,16 @@ class CommunitySecurityWebTest {
                         .with(user(authenticatedUser("ROLE_USER")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validPostJson()))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put(
+                        "/api/community/comments/{commentId}",
+                        COMMENT_ID
+                )
+                        .with(user(authenticatedUser("ROLE_USER")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"content": "CSRF 없는 수정"}
+                                """))
                 .andExpect(status().isForbidden());
 
         verifyNoInteractions(communityService);
@@ -161,6 +181,11 @@ class CommunitySecurityWebTest {
                 eq(POST_ID),
                 any(CommunityPostRequest.class)
         )).thenReturn(postResponse());
+        when(communityService.updateComment(
+                eq(USER_ID),
+                eq(COMMENT_ID),
+                any()
+        )).thenReturn(commentResponse());
 
         mockMvc.perform(put("/api/community/posts/{postId}", POST_ID)
                         .with(user(authenticatedUser("ROLE_USER")))
@@ -179,6 +204,17 @@ class CommunitySecurityWebTest {
                         .with(user(authenticatedUser("ROLE_USER")))
                         .with(csrf()))
                 .andExpect(status().isNoContent());
+        mockMvc.perform(put(
+                        "/api/community/comments/{commentId}",
+                        COMMENT_ID
+                )
+                        .with(user(authenticatedUser("ROLE_USER")))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"content": "수정된 댓글"}
+                                """))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -227,11 +263,15 @@ class CommunitySecurityWebTest {
         return new CommunityCommentResponse(
                 COMMENT_ID,
                 POST_ID,
+                null,
                 USER_ID,
                 "야구왕",
                 "댓글입니다.",
+                false,
+                false,
                 now,
-                now
+                now,
+                List.of()
         );
     }
 

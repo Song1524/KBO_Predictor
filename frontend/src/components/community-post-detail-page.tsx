@@ -4,11 +4,12 @@ import {
   Eye,
   MessageCircle,
   Pencil,
+  Reply as ReplyIcon,
   Send,
   Trash2,
   UserRound,
 } from 'lucide-react'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '@/auth-context'
 import { AppHeader } from '@/components/app-header'
@@ -44,6 +45,12 @@ export function CommunityPostDetailPage() {
   const [commentContent, setCommentContent] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
+  const [replyingToId, setReplyingToId] = useState<number | null>(null)
+  const [replyContent, setReplyContent] = useState('')
+  const [submittingReplyId, setSubmittingReplyId] = useState<number | null>(null)
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null)
+  const [editContent, setEditContent] = useState('')
+  const [updatingCommentId, setUpdatingCommentId] = useState<number | null>(null)
   const [deletingCommentId, setDeletingCommentId] = useState<number | null>(null)
   const [isDeletingPost, setIsDeletingPost] = useState(false)
   const [confirmPostDelete, setConfirmPostDelete] = useState(false)
@@ -148,6 +155,108 @@ export function CommunityPostDetailPage() {
     }
   }
 
+  const submitReply = async (
+    event: FormEvent<HTMLFormElement>,
+    parentCommentId: number,
+  ) => {
+    event.preventDefault()
+    if (!user) {
+      openLoginDialog()
+      setCommentError('로그인 후 답글을 작성할 수 있습니다.')
+      return
+    }
+    if (!replyContent.trim() || submittingReplyId != null) return
+
+    try {
+      setSubmittingReplyId(parentCommentId)
+      setCommentError('')
+      const response = await apiFetch(
+        `/api/community/posts/${postId}/comments`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: replyContent,
+            parentCommentId,
+          }),
+        },
+      )
+      if (response.status === 401) {
+        openLoginDialog()
+        throw new Error('로그인 후 답글을 작성할 수 있습니다.')
+      }
+      if (!response.ok) {
+        throw new Error(await communityApiError(
+          response,
+          '답글을 등록하지 못했습니다.',
+        ))
+      }
+      const created = await response.json() as CommunityCommentApiResponse
+      setComments((current) => current.map((comment) =>
+        comment.id === parentCommentId
+          ? { ...comment, replies: [...comment.replies, created] }
+          : comment,
+      ))
+      setPost((current) => current == null
+        ? current
+        : { ...current, commentCount: current.commentCount + 1 })
+      setReplyContent('')
+      setReplyingToId(null)
+    } catch (submitError) {
+      console.error(submitError)
+      setCommentError(submitError instanceof Error
+        ? submitError.message
+        : '답글을 등록하지 못했습니다.')
+    } finally {
+      setSubmittingReplyId(null)
+    }
+  }
+
+  const updateComment = async (
+    event: FormEvent<HTMLFormElement>,
+    commentId: number,
+  ) => {
+    event.preventDefault()
+    if (!editContent.trim() || updatingCommentId != null) return
+
+    try {
+      setUpdatingCommentId(commentId)
+      setCommentError('')
+      const response = await apiFetch(`/api/community/comments/${commentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: editContent }),
+      })
+      if (!response.ok) {
+        throw new Error(await communityApiError(
+          response,
+          '댓글을 수정하지 못했습니다.',
+        ))
+      }
+      const updated = await response.json() as CommunityCommentApiResponse
+      setComments((current) => current.map((comment) => {
+        if (comment.id === commentId) {
+          return { ...updated, replies: comment.replies }
+        }
+        return {
+          ...comment,
+          replies: comment.replies.map((reply) =>
+            reply.id === commentId ? updated : reply,
+          ),
+        }
+      }))
+      setEditingCommentId(null)
+      setEditContent('')
+    } catch (updateError) {
+      console.error(updateError)
+      setCommentError(updateError instanceof Error
+        ? updateError.message
+        : '댓글을 수정하지 못했습니다.')
+    } finally {
+      setUpdatingCommentId(null)
+    }
+  }
+
   const deleteComment = async (commentId: number) => {
     if (deletingCommentId != null) return
     try {
@@ -162,7 +271,23 @@ export function CommunityPostDetailPage() {
           '댓글을 삭제하지 못했습니다.',
         ))
       }
-      setComments((current) => current.filter((comment) => comment.id !== commentId))
+      setComments((current) => current.flatMap((comment) => {
+        if (comment.id === commentId) {
+          if (comment.replies.length === 0) return []
+          return [{
+            ...comment,
+            authorId: null,
+            authorNickname: null,
+            content: null,
+            deleted: true,
+            edited: false,
+          }]
+        }
+
+        const replies = comment.replies.filter((reply) => reply.id !== commentId)
+        if (comment.deleted && replies.length === 0) return []
+        return [{ ...comment, replies }]
+      }))
       setPost((current) => current == null
         ? current
         : { ...current, commentCount: Math.max(0, current.commentCount - 1) })
@@ -208,6 +333,207 @@ export function CommunityPostDetailPage() {
   const ownsPost = post?.authorId === user?.id
   const canDeletePost = ownsPost || isAdmin(user)
   const wasEdited = post != null && post.updatedAt !== post.createdAt
+
+  const startReply = (commentId: number) => {
+    if (!user) {
+      openLoginDialog()
+      setCommentError('로그인 후 답글을 작성할 수 있습니다.')
+      return
+    }
+    setEditingCommentId(null)
+    setEditContent('')
+    setReplyingToId(commentId)
+    setReplyContent('')
+    setCommentError('')
+  }
+
+  const startEditing = (comment: CommunityCommentApiResponse) => {
+    if (comment.content == null) return
+    setReplyingToId(null)
+    setReplyContent('')
+    setEditingCommentId(comment.id)
+    setEditContent(comment.content)
+    setCommentError('')
+  }
+
+  const renderComment = (
+    comment: CommunityCommentApiResponse,
+    isReply = false,
+  ): ReactNode => {
+    const ownsComment = comment.authorId != null
+      && comment.authorId === user?.id
+    const canDeleteComment = !comment.deleted
+      && (ownsComment || isAdmin(user))
+    const isEditingComment = editingCommentId === comment.id
+
+    return (
+      <div
+        key={comment.id}
+        className={cn(
+          'py-4',
+          isReply && 'ml-3 border-l-2 border-muted pl-3 sm:ml-8 sm:pl-5',
+        )}
+      >
+        {comment.deleted ? (
+          <p className="py-2 text-sm italic text-muted-foreground">
+            삭제된 댓글입니다.
+          </p>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="truncate text-sm font-bold">
+                    {comment.authorNickname}
+                  </p>
+                  {comment.edited && (
+                    <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                      수정됨
+                    </Badge>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {formatCommunityDateTime(comment.createdAt)}
+                </p>
+              </div>
+              <div className="flex flex-wrap justify-end gap-1">
+                {ownsComment && (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    disabled={updatingCommentId != null || deletingCommentId != null}
+                    onClick={() => startEditing(comment)}
+                  >
+                    수정
+                  </Button>
+                )}
+                {canDeleteComment && (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    disabled={deletingCommentId != null || updatingCommentId != null}
+                    onClick={() => void deleteComment(comment.id)}
+                  >
+                    <Trash2 data-icon="inline-start" />
+                    {deletingCommentId === comment.id ? '삭제 중' : '삭제'}
+                  </Button>
+                )}
+                {!isReply && (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    disabled={submittingReplyId != null}
+                    onClick={() => startReply(comment.id)}
+                  >
+                    <ReplyIcon data-icon="inline-start" />
+                    답글
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {isEditingComment ? (
+              <form
+                className="mt-3 grid gap-2"
+                onSubmit={(event) => void updateComment(event, comment.id)}
+              >
+                <textarea
+                  className="min-h-20 resize-y rounded-lg border bg-background p-3 text-sm leading-6 outline-none focus:ring-3 focus:ring-ring/30"
+                  value={editContent}
+                  maxLength={1000}
+                  disabled={updatingCommentId != null}
+                  aria-label="댓글 수정"
+                  onChange={(event) => setEditContent(event.target.value)}
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {editContent.length.toLocaleString()}/1,000
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={updatingCommentId != null}
+                      onClick={() => {
+                        setEditingCommentId(null)
+                        setEditContent('')
+                      }}
+                    >
+                      취소
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={updatingCommentId != null || !editContent.trim()}
+                    >
+                      {updatingCommentId === comment.id ? '수정 중' : '수정'}
+                    </Button>
+                  </div>
+                </div>
+              </form>
+            ) : (
+              <p className="mt-3 whitespace-pre-wrap break-words leading-6">
+                {comment.content}
+              </p>
+            )}
+          </>
+        )}
+
+        {!comment.deleted && !isReply && replyingToId === comment.id && (
+          <form
+            className="mt-3 ml-3 grid gap-2 border-l-2 border-primary/30 pl-3 sm:ml-8 sm:pl-5"
+            onSubmit={(event) => void submitReply(event, comment.id)}
+          >
+            <label className="text-xs font-semibold" htmlFor={`reply-${comment.id}`}>
+              {comment.authorNickname}님에게 답글
+            </label>
+            <textarea
+              id={`reply-${comment.id}`}
+              className="min-h-20 resize-y rounded-lg border bg-background p-3 text-sm leading-6 outline-none focus:ring-3 focus:ring-ring/30"
+              value={replyContent}
+              maxLength={1000}
+              disabled={submittingReplyId != null}
+              placeholder="답글을 입력해 주세요."
+              onChange={(event) => setReplyContent(event.target.value)}
+            />
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-muted-foreground">
+                {replyContent.length.toLocaleString()}/1,000
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={submittingReplyId != null}
+                  onClick={() => {
+                    setReplyingToId(null)
+                    setReplyContent('')
+                  }}
+                >
+                  취소
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={submittingReplyId != null || !replyContent.trim()}
+                >
+                  {submittingReplyId === comment.id ? '등록 중' : '답글 등록'}
+                </Button>
+              </div>
+            </div>
+          </form>
+        )}
+
+        {comment.replies.length > 0 && (
+          <div className="mt-1">
+            {comment.replies.map((reply) => renderComment(reply, true))}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -325,7 +651,7 @@ export function CommunityPostDetailPage() {
                 <CardHeader className="border-b">
                   <CardTitle id="comments-title" className="flex items-center gap-2">
                     <MessageCircle className="size-4" />
-                    댓글 {comments.length.toLocaleString()}
+                    댓글 {post.commentCount.toLocaleString()}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -336,38 +662,12 @@ export function CommunityPostDetailPage() {
                     </div>
                   ) : (
                     <div>
-                      {comments.map((comment, index) => {
-                        const canDeleteComment = comment.authorId === user?.id || isAdmin(user)
-                        return (
-                          <div key={comment.id}>
-                            <div className="py-4">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className="truncate text-sm font-bold">{comment.authorNickname}</p>
-                                  <p className="mt-1 text-xs text-muted-foreground">
-                                    {formatCommunityDateTime(comment.createdAt)}
-                                  </p>
-                                </div>
-                                {canDeleteComment && (
-                                  <Button
-                                    variant="ghost"
-                                    size="xs"
-                                    disabled={deletingCommentId != null}
-                                    onClick={() => void deleteComment(comment.id)}
-                                  >
-                                    <Trash2 data-icon="inline-start" />
-                                    {deletingCommentId === comment.id ? '삭제 중' : '삭제'}
-                                  </Button>
-                                )}
-                              </div>
-                              <p className="mt-3 whitespace-pre-wrap break-words leading-6">
-                                {comment.content}
-                              </p>
-                            </div>
-                            {index < comments.length - 1 && <Separator />}
-                          </div>
-                        )
-                      })}
+                      {comments.map((comment, index) => (
+                        <div key={comment.id}>
+                          {renderComment(comment)}
+                          {index < comments.length - 1 && <Separator />}
+                        </div>
+                      ))}
                     </div>
                   )}
 

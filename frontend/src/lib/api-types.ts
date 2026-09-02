@@ -130,11 +130,15 @@ export type CommunityPostApiResponse = CommunityPostListItemApiResponse & {
 export type CommunityCommentApiResponse = {
   id: number
   postId: number
-  authorId: number
-  authorNickname: string
-  content: string
+  parentCommentId: number | null
+  authorId: number | null
+  authorNickname: string | null
+  content: string | null
+  deleted: boolean
+  edited: boolean
   createdAt: string
   updatedAt: string
+  replies: CommunityCommentApiResponse[]
 }
 
 export type CommunityPageApiResponse<T> = {

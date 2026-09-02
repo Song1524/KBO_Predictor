@@ -36,6 +36,10 @@ public class CommunityComment {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_comment_id")
+    private CommunityComment parent;
+
     @Column(nullable = false, length = 1000)
     private String content;
 
@@ -52,17 +56,32 @@ public class CommunityComment {
     public static CommunityComment create(
             CommunityPost post,
             User user,
+            CommunityComment parent,
             String content,
             LocalDateTime now
     ) {
         CommunityComment comment = new CommunityComment();
         comment.post = post;
         comment.user = user;
+        comment.parent = parent;
         comment.content = content.trim();
         comment.status = CommunityContentStatus.ACTIVE;
         comment.createdAt = now;
         comment.updatedAt = now;
         return comment;
+    }
+
+    public boolean isReply() {
+        return parent != null;
+    }
+
+    public boolean isDeleted() {
+        return status == CommunityContentStatus.DELETED;
+    }
+
+    public void update(String content, LocalDateTime now) {
+        this.content = content.trim();
+        this.updatedAt = now;
     }
 
     public void delete(LocalDateTime now) {

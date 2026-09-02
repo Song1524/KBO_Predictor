@@ -3,6 +3,7 @@ package com.playball.kbopredictor.community.controller;
 import com.playball.kbopredictor.auth.security.AuthenticatedUser;
 import com.playball.kbopredictor.community.dto.CommunityCommentRequest;
 import com.playball.kbopredictor.community.dto.CommunityCommentResponse;
+import com.playball.kbopredictor.community.dto.CommunityCommentUpdateRequest;
 import com.playball.kbopredictor.community.dto.CommunityPageResponse;
 import com.playball.kbopredictor.community.dto.CommunityPostListItemResponse;
 import com.playball.kbopredictor.community.dto.CommunityPostRequest;
@@ -123,5 +124,18 @@ public class CommunityController {
                 commentId
         );
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/comments/{commentId}")
+    public ResponseEntity<CommunityCommentResponse> updateComment(
+            @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+            @PathVariable @Positive Long commentId,
+            @Valid @RequestBody CommunityCommentUpdateRequest request
+    ) {
+        return ResponseEntity.ok(communityService.updateComment(
+                authenticatedUser.getUserId(),
+                commentId,
+                request
+        ));
     }
 }

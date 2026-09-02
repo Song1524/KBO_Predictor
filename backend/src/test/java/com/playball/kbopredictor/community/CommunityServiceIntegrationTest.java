@@ -2,6 +2,7 @@ package com.playball.kbopredictor.community;
 
 import com.playball.kbopredictor.community.dto.CommunityCommentRequest;
 import com.playball.kbopredictor.community.dto.CommunityCommentResponse;
+import com.playball.kbopredictor.community.dto.CommunityCommentUpdateRequest;
 import com.playball.kbopredictor.community.dto.CommunityPageResponse;
 import com.playball.kbopredictor.community.dto.CommunityPostListItemResponse;
 import com.playball.kbopredictor.community.dto.CommunityPostRequest;
@@ -50,8 +51,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         "app.prediction.history-finalization-scheduler.enabled=false"
 })
 @ActiveProfiles("test")
-@Import(CommunityServiceIntegrationTest.FixedClockConfiguration.class)
+@Import(CommunityServiceIntegrationTest.MutableClockConfiguration.class)
 class CommunityServiceIntegrationTest {
+
+    private static final Instant INITIAL_INSTANT =
+            Instant.parse("2026-09-02T03:00:00Z");
 
     @Autowired
     private CommunityService communityService;
@@ -63,6 +67,8 @@ class CommunityServiceIntegrationTest {
     private UserRepository userRepository;
     @Autowired
     private TransactionTemplate transactionTemplate;
+    @Autowired
+    private MutableClock clock;
 
     private Long ownerId;
     private Long otherUserId;
@@ -70,6 +76,7 @@ class CommunityServiceIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        clock.setInstant(INITIAL_INSTANT);
         transactionTemplate.executeWithoutResult(status -> {
             ownerId = createUser("owner", "USER").getId();
             otherUserId = createUser("other", "USER").getId();
@@ -99,11 +106,17 @@ class CommunityServiceIntegrationTest {
             ).id());
         }
         Long newestPostId = ids.getLast();
-        communityService.createComment(
+        CommunityCommentResponse parent = communityService.createComment(
                 otherUserId,
                 newestPostId,
                 new CommunityCommentRequest("첫 댓글")
         );
+        communityService.createComment(
+                ownerId,
+                newestPostId,
+                new CommunityCommentRequest("첫 답글", parent.id())
+        );
+        communityService.deleteComment(otherUserId, parent.id());
         CommunityCommentResponse deletedComment = communityService.createComment(
                 ownerId,
                 newestPostId,
@@ -220,6 +233,154 @@ class CommunityServiceIntegrationTest {
         assertThat(communityService.getComments(postId)).isEmpty();
     }
 
+    @Test
+    void commentOwnerCanEditButOtherUserAndAdminCannotEdit() {
+        Long postId = createPost("수정 테스트");
+        CommunityCommentResponse comment = communityService.createComment(
+                ownerId,
+                postId,
+                new CommunityCommentRequest("원래 댓글")
+        );
+
+        assertForbidden(() -> communityService.updateComment(
+                otherUserId,
+                comment.id(),
+                new CommunityCommentUpdateRequest("타인 수정")
+        ));
+        assertForbidden(() -> communityService.updateComment(
+                adminId,
+                comment.id(),
+                new CommunityCommentUpdateRequest("관리자 수정")
+        ));
+
+        clock.setInstant(INITIAL_INSTANT.plusSeconds(60));
+        CommunityCommentResponse updated = communityService.updateComment(
+                ownerId,
+                comment.id(),
+                new CommunityCommentUpdateRequest("수정된 댓글")
+        );
+
+        assertThat(updated.content()).isEqualTo("수정된 댓글");
+        assertThat(updated.edited()).isTrue();
+        assertThat(updated.updatedAt()).isAfter(updated.createdAt());
+
+        communityService.deleteComment(ownerId, comment.id());
+        assertStatus(HttpStatus.NOT_FOUND, () -> communityService.updateComment(
+                ownerId,
+                comment.id(),
+                new CommunityCommentUpdateRequest("삭제 후 수정")
+        ));
+    }
+
+    @Test
+    void repliesAreReturnedNestedAndOldestFirst() {
+        Long postId = createPost("답글 정렬");
+        CommunityCommentResponse parent = communityService.createComment(
+                ownerId,
+                postId,
+                new CommunityCommentRequest("부모 댓글")
+        );
+        CommunityCommentResponse firstReply = communityService.createComment(
+                otherUserId,
+                postId,
+                new CommunityCommentRequest("첫 답글", parent.id())
+        );
+        CommunityCommentResponse secondReply = communityService.createComment(
+                ownerId,
+                postId,
+                new CommunityCommentRequest("두 번째 답글", parent.id())
+        );
+
+        List<CommunityCommentResponse> comments =
+                communityService.getComments(postId);
+
+        assertThat(comments).hasSize(1);
+        assertThat(comments.getFirst().id()).isEqualTo(parent.id());
+        assertThat(comments.getFirst().replies())
+                .extracting(CommunityCommentResponse::id)
+                .containsExactly(firstReply.id(), secondReply.id());
+        assertThat(comments.getFirst().replies())
+                .extracting(CommunityCommentResponse::parentCommentId)
+                .containsOnly(parent.id());
+    }
+
+    @Test
+    void invalidReplyParentsAreRejectedByServer() {
+        Long firstPostId = createPost("첫 게시글");
+        Long secondPostId = createPost("둘째 게시글");
+        CommunityCommentResponse parent = communityService.createComment(
+                ownerId,
+                firstPostId,
+                new CommunityCommentRequest("부모 댓글")
+        );
+
+        assertStatus(HttpStatus.BAD_REQUEST, () -> communityService.createComment(
+                otherUserId,
+                secondPostId,
+                new CommunityCommentRequest("타 게시글 답글", parent.id())
+        ));
+
+        CommunityCommentResponse reply = communityService.createComment(
+                otherUserId,
+                firstPostId,
+                new CommunityCommentRequest("정상 답글", parent.id())
+        );
+        assertStatus(HttpStatus.BAD_REQUEST, () -> communityService.createComment(
+                ownerId,
+                firstPostId,
+                new CommunityCommentRequest("2단계 답글", reply.id())
+        ));
+
+        communityService.deleteComment(ownerId, parent.id());
+        assertStatus(HttpStatus.BAD_REQUEST, () -> communityService.createComment(
+                ownerId,
+                firstPostId,
+                new CommunityCommentRequest("삭제 부모 답글", parent.id())
+        ));
+    }
+
+    @Test
+    void deletedParentKeepsAnonymousPlaceholderUntilActiveRepliesAreGone() {
+        Long postId = createPost("삭제 placeholder");
+        CommunityCommentResponse parent = communityService.createComment(
+                ownerId,
+                postId,
+                new CommunityCommentRequest("숨겨질 작성자 본문")
+        );
+        CommunityCommentResponse reply = communityService.createComment(
+                otherUserId,
+                postId,
+                new CommunityCommentRequest("유지될 답글", parent.id())
+        );
+
+        communityService.deleteComment(ownerId, parent.id());
+
+        List<CommunityCommentResponse> comments =
+                communityService.getComments(postId);
+        assertThat(comments).hasSize(1);
+        CommunityCommentResponse placeholder = comments.getFirst();
+        assertThat(placeholder.deleted()).isTrue();
+        assertThat(placeholder.authorId()).isNull();
+        assertThat(placeholder.authorNickname()).isNull();
+        assertThat(placeholder.content()).isNull();
+        assertThat(placeholder.replies())
+                .extracting(CommunityCommentResponse::id)
+                .containsExactly(reply.id());
+        assertThat(communityService.getPost(postId).commentCount()).isEqualTo(1);
+
+        communityService.deleteComment(adminId, reply.id());
+
+        assertThat(communityService.getComments(postId)).isEmpty();
+        assertThat(communityService.getPost(postId).commentCount()).isZero();
+    }
+
+    private Long createPost(String title) {
+        return communityService.createPost(
+                ownerId,
+                new CommunityPostRequest(title, "게시글 본문")
+        ).id();
+    }
+
     private User createUser(String prefix, String role) {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         User user = User.createLocal(
@@ -237,24 +398,61 @@ class CommunityServiceIntegrationTest {
     }
 
     private void assertForbidden(Runnable operation) {
+        assertStatus(HttpStatus.FORBIDDEN, operation);
+    }
+
+    private void assertStatus(HttpStatus status, Runnable operation) {
         assertThatThrownBy(operation::run)
                 .isInstanceOfSatisfying(
                         ResponseStatusException.class,
                         exception -> assertThat(exception.getStatusCode())
-                                .isEqualTo(HttpStatus.FORBIDDEN)
+                                .isEqualTo(status)
                 );
     }
 
     @TestConfiguration
-    static class FixedClockConfiguration {
+    static class MutableClockConfiguration {
 
         @Bean
         @Primary
-        Clock fixedCommunityClock() {
-            return Clock.fixed(
-                    Instant.parse("2026-09-02T03:00:00Z"),
+        MutableClock mutableCommunityClock() {
+            return new MutableClock(
+                    INITIAL_INSTANT,
                     ZoneId.of("Asia/Seoul")
             );
+        }
+    }
+
+    static final class MutableClock extends Clock {
+
+        private Instant currentInstant;
+        private final ZoneId zone;
+
+        MutableClock(Instant currentInstant, ZoneId zone) {
+            this.currentInstant = currentInstant;
+            this.zone = zone;
+        }
+
+        void setInstant(Instant instant) {
+            this.currentInstant = instant;
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return zone;
+        }
+
+        @Override
+        public Clock withZone(ZoneId requestedZone) {
+            if (zone.equals(requestedZone)) {
+                return this;
+            }
+            return Clock.fixed(currentInstant, requestedZone);
+        }
+
+        @Override
+        public Instant instant() {
+            return currentInstant;
         }
     }
 }
