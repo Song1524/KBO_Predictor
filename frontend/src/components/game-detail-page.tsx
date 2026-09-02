@@ -19,7 +19,6 @@ import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -134,7 +133,7 @@ function formatTotalBetPoints(value: number | null | undefined) {
 
 function TeamMark({ teamName }: { teamName: string }) {
   return (
-    <div className="flex size-12 items-center justify-center rounded-full bg-primary font-mono text-xs font-black text-primary-foreground sm:size-14 sm:text-sm">
+    <div className="flex size-10 items-center justify-center rounded-full bg-primary font-mono text-[11px] font-black text-primary-foreground sm:size-12 sm:text-xs">
       {getTeamMark(teamName)}
     </div>
   )
@@ -199,7 +198,7 @@ function AiAnalysis({
       <SectionHeading
         eyebrow="AI 분석"
         title={`AI 예상 · ${predictedLabel}`}
-        description="홈·무·원정 예상 확률과 주요 근거를 확인해 보세요."
+        description="원정·무·홈 예상 확률과 주요 근거를 확인해 보세요."
       />
 
       {probabilities ? (
@@ -272,9 +271,9 @@ function getPredictionProbabilities(prediction: SystemPredictionApiResponse) {
   if (home == null || draw == null || away == null) return null
 
   return [
-    { outcome: 'HOME_WIN' as const, label: '홈 승', value: home, color: 'bg-primary' },
-    { outcome: 'DRAW' as const, label: '무승부', value: draw, color: 'bg-muted-foreground/50' },
     { outcome: 'AWAY_WIN' as const, label: '원정 승', value: away, color: 'bg-accent' },
+    { outcome: 'DRAW' as const, label: '무승부', value: draw, color: 'bg-muted-foreground/50' },
+    { outcome: 'HOME_WIN' as const, label: '홈 승', value: home, color: 'bg-primary' },
   ]
 }
 
@@ -785,40 +784,41 @@ function GameHeader({ game }: { game: GameApiResponse }) {
   const showScore = game.status === 'IN_PROGRESS' || game.status === 'FINISHED'
 
   return (
-    <Card size="sm" className="overflow-hidden">
-      <CardHeader className="border-b bg-primary text-primary-foreground">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-primary-foreground/75">
-          <span className="flex items-center gap-1.5">
-            <CalendarDays className="size-4" />
+    <Card size="sm" className="gap-0 overflow-hidden py-0">
+      <div className="flex min-w-0 items-center justify-between gap-3 border-b bg-muted/35 px-4 py-2.5 sm:px-5">
+        <div className="flex min-w-0 items-center gap-3 overflow-hidden whitespace-nowrap text-[11px] text-muted-foreground sm:gap-4 sm:text-xs">
+          <span className="flex shrink-0 items-center gap-1.5">
+            <CalendarDays className="size-3.5" />
             {formatGameDate(game.gameDate)}
           </span>
-          <span className="flex items-center gap-1.5 font-mono">
-            <Clock3 className="size-4" />
+          <span className="flex shrink-0 items-center gap-1.5 font-mono">
+            <Clock3 className="size-3.5" />
             {formatGameTime(game.gameTime)}
           </span>
-          <span className="flex items-center gap-1.5">
-            <MapPin className="size-4" />
-            {normalizeText(game.stadium, '구장 미정')}
+          <span className="flex min-w-0 items-center gap-1.5">
+            <MapPin className="size-3.5 shrink-0" />
+            <span className="truncate">{normalizeText(game.stadium, '구장 미정')}</span>
           </span>
         </div>
-        <CardAction>
-          <Badge variant="secondary">{getGameStatusLabel(game.status)}</Badge>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="px-4 py-5 sm:px-6 sm:py-6">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 sm:gap-6">
-          <div className="flex min-w-0 flex-col items-center gap-2 text-center">
+        <Badge className="shrink-0 bg-background text-foreground shadow-none" variant="outline">
+          {getGameStatusLabel(game.status)}
+        </Badge>
+      </div>
+
+      <CardContent className="px-4 py-4 sm:px-5 sm:py-4">
+        <div className="mx-auto grid max-w-2xl grid-cols-[minmax(0,1fr)_64px_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_88px_minmax(0,1fr)] sm:gap-4">
+          <div className="flex min-w-0 flex-col items-center gap-1 text-center">
             <TeamMark teamName={awayName} />
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-muted-foreground">원정</p>
-              <h1 className="mt-0.5 break-keep text-base font-black sm:text-xl">{awayName}</h1>
+              <p className="text-[10px] font-semibold text-muted-foreground sm:text-[11px]">원정</p>
+              <h1 className="mt-0.5 break-keep text-sm font-black sm:text-lg">{awayName}</h1>
             </div>
           </div>
 
           <div className="text-center">
             <p className={showScore
-              ? 'font-mono text-2xl font-black tracking-tight sm:text-3xl'
-              : 'font-mono text-sm font-bold text-muted-foreground sm:text-base'}>
+              ? 'font-mono text-2xl font-black tracking-tight text-primary sm:text-4xl'
+              : 'font-mono text-xl font-black tracking-wider text-primary sm:text-2xl'}>
               {showScore
                 ? `${game.awayScore ?? '-'} : ${game.homeScore ?? '-'}`
                 : 'VS'}
@@ -830,17 +830,17 @@ function GameHeader({ game }: { game: GameApiResponse }) {
             )}
           </div>
 
-          <div className="flex min-w-0 flex-col items-center gap-2 text-center">
+          <div className="flex min-w-0 flex-col items-center gap-1 text-center">
             <TeamMark teamName={homeName} />
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-muted-foreground">홈</p>
-              <h1 className="mt-0.5 break-keep text-base font-black sm:text-xl">{homeName}</h1>
+              <p className="text-[10px] font-semibold text-muted-foreground sm:text-[11px]">홈</p>
+              <h1 className="mt-0.5 break-keep text-sm font-black sm:text-lg">{homeName}</h1>
             </div>
           </div>
         </div>
 
         {game.status === 'FINISHED' && game.result == null && (
-          <p className="mt-4 text-center text-xs text-muted-foreground">
+          <p className="mt-2.5 text-center text-[11px] text-muted-foreground">
             공식 최종 결과를 확인 중입니다.
           </p>
         )}
