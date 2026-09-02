@@ -132,7 +132,7 @@ function formatTotalBetPoints(value: number | null | undefined) {
 
 function TeamMark({ teamName }: { teamName: string }) {
   return (
-    <div className="flex size-14 items-center justify-center rounded-full bg-primary font-mono text-sm font-black text-primary-foreground sm:size-16 sm:text-base">
+    <div className="flex size-12 items-center justify-center rounded-full bg-primary font-mono text-xs font-black text-primary-foreground sm:size-14 sm:text-sm">
       {getTeamMark(teamName)}
     </div>
   )
@@ -172,11 +172,11 @@ function AiAnalysis({
   const prediction = game.aiPrediction
   if (!prediction) {
     return (
-      <section className="rounded-2xl border bg-card p-5 sm:p-6 lg:col-span-2">
+      <section className="rounded-2xl border bg-card p-4 sm:p-5">
         <SectionHeading
           eyebrow="AI 분석"
           title="AI 분석 준비 중"
-          description="이 경기에 저장된 시스템 예측이 아직 없습니다."
+          description="경기 분석을 준비하고 있습니다."
         />
       </section>
     )
@@ -193,22 +193,17 @@ function AiAnalysis({
   const reason = prediction.reason?.trim()
 
   return (
-    <section className="rounded-2xl border bg-card p-5 sm:p-6 lg:col-span-2">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-        <SectionHeading
-          eyebrow="AI 분석"
-          title={`AI 예상 · ${predictedLabel}`}
-          description="백엔드에 저장된 시스템 예측 확률입니다."
-        />
-        {prediction.modelVersion && (
-          <Badge variant="outline">{prediction.modelVersion}</Badge>
-        )}
-      </div>
+    <section className="rounded-2xl border bg-card p-4 sm:p-5">
+      <SectionHeading
+        eyebrow="AI 분석"
+        title={`AI 예상 · ${predictedLabel}`}
+        description="홈·무·원정 예상 확률과 주요 근거를 확인해 보세요."
+      />
 
       {probabilities ? (
-        <div className="mt-6">
+        <div className="mt-4">
           <div
-            className="flex h-3 overflow-hidden rounded-full bg-border"
+            className="flex h-2.5 overflow-hidden rounded-full bg-border"
             role="img"
             aria-label={probabilities
               .map(({ label, value }) => `${label} ${formatProbability(value)}`)
@@ -222,7 +217,7 @@ function AiAnalysis({
               />
             ))}
           </div>
-          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+          <div className="mt-2 grid grid-cols-3 gap-2 text-center">
             {probabilities.map(({ outcome, label, value }) => (
               <div
                 key={outcome}
@@ -239,27 +234,27 @@ function AiAnalysis({
           </div>
         </div>
       ) : (
-        <p className="mt-5 rounded-xl bg-muted/50 p-4 text-sm text-muted-foreground">
+        <p className="mt-4 rounded-xl bg-muted/50 p-3 text-sm text-muted-foreground">
           AI 확률 데이터가 아직 준비되지 않았습니다.
         </p>
       )}
 
-      <div className="mt-6 border-t pt-5">
+      <div className="mt-4 border-t pt-4">
         <h3 className="flex items-center gap-2 text-sm font-bold">
           <Sparkles className="size-4 text-primary" />
           상세 예측 근거
         </h3>
         {reason ? (
-          <p className="mt-3 whitespace-pre-line text-sm leading-7 text-foreground/80">
+          <p className="mt-2 whitespace-pre-line text-sm leading-6 text-foreground/80">
             {reason}
           </p>
         ) : (
-          <p className="mt-3 text-sm text-muted-foreground">
+          <p className="mt-2 text-sm text-muted-foreground">
             제공된 상세 예측 근거가 없습니다.
           </p>
         )}
         {formatDateTime(prediction.generatedAt) && (
-          <p className="mt-4 text-xs text-muted-foreground">
+          <p className="mt-3 text-xs text-muted-foreground">
             분석 생성 {formatDateTime(prediction.generatedAt)}
           </p>
         )}
@@ -291,13 +286,13 @@ function StartingPitcherComparison({
   awayName: string
 }) {
   return (
-    <section className="rounded-2xl border bg-card p-5 sm:p-6">
+    <section className="self-start rounded-2xl border bg-card p-4 sm:p-5">
       <SectionHeading
         eyebrow="선발투수"
         title="선발투수 비교"
-        description="현재 경기 응답에 확정된 선발 정보입니다."
+        description="오늘 경기의 선발투수입니다."
       />
-      <div className="mt-6 grid grid-cols-2 gap-3">
+      <div className="mt-4 grid grid-cols-2 gap-2">
         <PitcherSide
           side="원정"
           teamName={awayName}
@@ -309,9 +304,6 @@ function StartingPitcherComparison({
           pitcherName={game.homeStartingPitcherName}
         />
       </div>
-      <p className="mt-5 border-t pt-4 text-xs leading-relaxed text-muted-foreground">
-        선발투수 ERA와 승패 기록은 현재 공개 API 응답에 포함되지 않습니다.
-      </p>
     </section>
   )
 }
@@ -326,12 +318,12 @@ function PitcherSide({
   pitcherName: string | null
 }) {
   return (
-    <div className="min-w-0 rounded-xl bg-muted/45 p-4 text-center">
-      <UserRound className="mx-auto size-7 text-primary" />
-      <p className="mt-3 text-xs font-semibold text-muted-foreground">
+    <div className="min-w-0 rounded-xl bg-muted/45 p-3 text-center">
+      <UserRound className="mx-auto size-5 text-primary" />
+      <p className="mt-2 text-[11px] font-medium text-muted-foreground">
         {side} · {teamName}
       </p>
-      <p className="mt-1 truncate text-base font-black" title={pitcherName ?? '선발 미정'}>
+      <p className="mt-0.5 truncate text-sm font-black sm:text-base" title={pitcherName ?? '선발 미정'}>
         {normalizeText(pitcherName, '선발 미정')}
       </p>
     </div>
@@ -354,37 +346,37 @@ function TeamStatComparison({
   error: string
 }) {
   return (
-    <section className="rounded-2xl border bg-card p-5 sm:p-6">
+    <section className="rounded-2xl border bg-card p-4 sm:p-5">
       <SectionHeading
         eyebrow="팀 데이터"
         title="시즌 성적 비교"
-        description="각 팀의 가장 최근 수집 기록을 비교합니다."
+        description="두 팀의 시즌 성적과 최근 흐름을 비교합니다."
       />
 
       {isLoading ? (
-        <p className="mt-8 py-10 text-center text-sm text-muted-foreground">
+        <p className="mt-5 py-8 text-center text-sm text-muted-foreground">
           팀 성적을 불러오는 중입니다.
         </p>
       ) : !homeStat && !awayStat ? (
-        <p className="mt-8 rounded-xl bg-muted/45 px-4 py-10 text-center text-sm text-muted-foreground">
+        <p className="mt-5 rounded-xl bg-muted/45 px-4 py-8 text-center text-sm text-muted-foreground">
           양 팀의 최신 통계가 없습니다.
         </p>
       ) : (
-        <div className="mt-6">
-          <div className="grid grid-cols-[minmax(0,1fr)_76px_minmax(0,1fr)] items-end gap-2 border-b pb-3 text-center">
+        <div className="mt-4">
+          <div className="grid grid-cols-[minmax(0,1fr)_68px_minmax(0,1fr)] items-end gap-2 border-b pb-2 text-center">
             <div className="min-w-0">
               <strong className="block truncate text-sm" title={awayName}>{awayName}</strong>
               {!awayStat && <span className="text-[10px] text-muted-foreground">통계 없음</span>}
             </div>
-            <span className="text-[11px] font-semibold text-muted-foreground">항목</span>
+            <span className="text-[10px] font-medium text-muted-foreground/70">비교</span>
             <div className="min-w-0">
               <strong className="block truncate text-sm" title={homeName}>{homeName}</strong>
               {!homeStat && <span className="text-[10px] text-muted-foreground">통계 없음</span>}
             </div>
           </div>
-          <ComparisonRow label="시즌" away={formatRecord(awayStat?.wins ?? null, awayStat?.losses ?? null, awayStat?.draws ?? null)} home={formatRecord(homeStat?.wins ?? null, homeStat?.losses ?? null, homeStat?.draws ?? null)} />
-          <ComparisonRow label="승률" away={formatBaseballRate(awayStat?.winRate ?? null)} home={formatBaseballRate(homeStat?.winRate ?? null)} />
-          <ComparisonRow label="최근 10" away={formatRecord(awayStat?.recent10Wins ?? null, awayStat?.recent10Losses ?? null, awayStat?.recent10Draws ?? null)} home={formatRecord(homeStat?.recent10Wins ?? null, homeStat?.recent10Losses ?? null, homeStat?.recent10Draws ?? null)} />
+          <ComparisonRow emphasized label="시즌" away={formatRecord(awayStat?.wins ?? null, awayStat?.losses ?? null, awayStat?.draws ?? null)} home={formatRecord(homeStat?.wins ?? null, homeStat?.losses ?? null, homeStat?.draws ?? null)} />
+          <ComparisonRow emphasized label="승률" away={formatBaseballRate(awayStat?.winRate ?? null)} home={formatBaseballRate(homeStat?.winRate ?? null)} />
+          <ComparisonRow emphasized label="최근 10" away={formatRecord(awayStat?.recent10Wins ?? null, awayStat?.recent10Losses ?? null, awayStat?.recent10Draws ?? null)} home={formatRecord(homeStat?.recent10Wins ?? null, homeStat?.recent10Losses ?? null, homeStat?.recent10Draws ?? null)} />
           <ComparisonRow label="최근 승률" away={formatBaseballRate(awayStat?.recent10WinRate ?? null)} home={formatBaseballRate(homeStat?.recent10WinRate ?? null)} />
           <ComparisonRow label="홈 성적" away={formatRecord(awayStat?.homeWins ?? null, awayStat?.homeLosses ?? null, awayStat?.homeDraws ?? null)} home={formatRecord(homeStat?.homeWins ?? null, homeStat?.homeLosses ?? null, homeStat?.homeDraws ?? null)} />
           <ComparisonRow label="원정 성적" away={formatRecord(awayStat?.awayWins ?? null, awayStat?.awayLosses ?? null, awayStat?.awayDraws ?? null)} home={formatRecord(homeStat?.awayWins ?? null, homeStat?.awayLosses ?? null, homeStat?.awayDraws ?? null)} />
@@ -395,10 +387,10 @@ function TeamStatComparison({
       )}
 
       {error && (
-        <p className="mt-4 text-xs text-destructive">{error}</p>
+        <p className="mt-3 text-xs text-destructive">{error}</p>
       )}
       {!isLoading && (homeStat || awayStat) && (
-        <p className="mt-4 text-xs text-muted-foreground">
+        <p className="mt-3 text-xs text-muted-foreground">
           기준일 {awayStat?.statDate ?? homeStat?.statDate ?? '-'}
         </p>
       )}
@@ -410,16 +402,26 @@ function ComparisonRow({
   label,
   away,
   home,
+  emphasized = false,
 }: {
   label: string
   away: string
   home: string
+  emphasized?: boolean
 }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_76px_minmax(0,1fr)] items-center gap-2 border-b py-3 text-center last:border-b-0">
-      <span className="min-w-0 break-keep font-mono text-xs font-semibold sm:text-sm">{away}</span>
-      <span className="text-[11px] font-semibold text-muted-foreground">{label}</span>
-      <span className="min-w-0 break-keep font-mono text-xs font-semibold sm:text-sm">{home}</span>
+    <div className="grid grid-cols-[minmax(0,1fr)_68px_minmax(0,1fr)] items-center gap-2 border-b py-2.5 text-center last:border-b-0">
+      <span className={emphasized
+        ? 'min-w-0 break-keep font-mono text-sm font-black text-foreground'
+        : 'min-w-0 break-keep font-mono text-xs font-semibold text-foreground/75 sm:text-sm'}>
+        {away}
+      </span>
+      <span className="text-[10px] font-medium text-muted-foreground/70">{label}</span>
+      <span className={emphasized
+        ? 'min-w-0 break-keep font-mono text-sm font-black text-foreground'
+        : 'min-w-0 break-keep font-mono text-xs font-semibold text-foreground/75 sm:text-sm'}>
+        {home}
+      </span>
     </div>
   )
 }
@@ -481,7 +483,7 @@ export function GameDetailPage() {
 
         const data = await response.json() as GameApiResponse
         if (data.id !== gameId) {
-          throw new Error('경기 상세 응답이 올바르지 않습니다.')
+          throw new Error('경기 정보를 확인할 수 없습니다.')
         }
         if (controller.signal.aborted) return
 
@@ -577,7 +579,7 @@ export function GameDetailPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <AppHeader />
-      <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:py-8 lg:px-6 lg:py-10">
+      <main className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-5 sm:py-6 lg:px-6 lg:py-8">
         <Link
           to="/#games"
           className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'w-fit')}
@@ -612,43 +614,26 @@ export function GameDetailPage() {
           <>
             <GameHeader game={game} />
 
-            <div className="grid gap-5 lg:grid-cols-2">
-              <AiAnalysis
-                game={game}
-                homeName={normalizeText(game.homeTeamName, '정보 없음')}
-                awayName={normalizeText(game.awayTeamName, '정보 없음')}
-              />
-              <StartingPitcherComparison
-                game={game}
-                homeName={normalizeText(game.homeTeamName, '정보 없음')}
-                awayName={normalizeText(game.awayTeamName, '정보 없음')}
-              />
-              <TeamStatComparison
-                homeName={normalizeText(game.homeTeamName, '정보 없음')}
-                awayName={normalizeText(game.awayTeamName, '정보 없음')}
-                homeStat={homeStat}
-                awayStat={awayStat}
-                isLoading={isLoadingStats}
-                error={statsError}
-              />
-            </div>
+            <AiAnalysis
+              game={game}
+              homeName={normalizeText(game.homeTeamName, '정보 없음')}
+              awayName={normalizeText(game.awayTeamName, '정보 없음')}
+            />
 
-            <Card>
+            <Card size="sm">
               <CardHeader>
-                <CardTitle>승부예측</CardTitle>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <CardTitle>승부예측</CardTitle>
+                  <Badge variant={game.userOdds?.finalized ? 'secondary' : 'outline'}>
+                    {game.userOdds?.finalized ? '최종 배당' : '현재 배당'}
+                  </Badge>
+                </div>
                 <CardDescription>
                   승·무·패를 선택하고 보유 포인트로 참여할 수 있습니다.
                 </CardDescription>
-                <CardAction>
-                  <div className="flex flex-col items-end gap-1">
-                    <Badge variant={game.userOdds?.finalized ? 'secondary' : 'outline'}>
-                      {game.userOdds?.finalized ? '최종 배당' : '현재 배당'}
-                    </Badge>
-                    <span className="text-[11px] text-muted-foreground">
-                      {formatTotalBetPoints(game.userOdds?.totalBetPoints)}
-                    </span>
-                  </div>
-                </CardAction>
+                <span className="text-[11px] text-muted-foreground">
+                  {formatTotalBetPoints(game.userOdds?.totalBetPoints)}
+                </span>
               </CardHeader>
               <CardContent>
                 <GamePredictionPanel
@@ -668,6 +653,22 @@ export function GameDetailPage() {
                 )}
               </CardContent>
             </Card>
+
+            <div className="grid items-start gap-4 lg:grid-cols-2">
+              <StartingPitcherComparison
+                game={game}
+                homeName={normalizeText(game.homeTeamName, '정보 없음')}
+                awayName={normalizeText(game.awayTeamName, '정보 없음')}
+              />
+              <TeamStatComparison
+                homeName={normalizeText(game.homeTeamName, '정보 없음')}
+                awayName={normalizeText(game.awayTeamName, '정보 없음')}
+                homeStat={homeStat}
+                awayStat={awayStat}
+                isLoading={isLoadingStats}
+                error={statsError}
+              />
+            </div>
           </>
         )}
       </main>
@@ -681,9 +682,9 @@ function GameHeader({ game }: { game: GameApiResponse }) {
   const showScore = game.status === 'IN_PROGRESS' || game.status === 'FINISHED'
 
   return (
-    <Card className="overflow-hidden">
+    <Card size="sm" className="overflow-hidden">
       <CardHeader className="border-b bg-primary text-primary-foreground">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-primary-foreground/75">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-primary-foreground/75">
           <span className="flex items-center gap-1.5">
             <CalendarDays className="size-4" />
             {formatGameDate(game.gameDate)}
@@ -701,19 +702,19 @@ function GameHeader({ game }: { game: GameApiResponse }) {
           <Badge variant="secondary">{getGameStatusLabel(game.status)}</Badge>
         </CardAction>
       </CardHeader>
-      <CardContent className="px-4 py-7 sm:px-8 sm:py-9">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 sm:gap-8">
-          <div className="flex min-w-0 flex-col items-center gap-3 text-center">
+      <CardContent className="px-4 py-5 sm:px-6 sm:py-6">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 sm:gap-6">
+          <div className="flex min-w-0 flex-col items-center gap-2 text-center">
             <TeamMark teamName={awayName} />
             <div className="min-w-0">
               <p className="text-xs font-semibold text-muted-foreground">원정</p>
-              <h1 className="mt-1 break-keep text-base font-black sm:text-2xl">{awayName}</h1>
+              <h1 className="mt-0.5 break-keep text-base font-black sm:text-xl">{awayName}</h1>
             </div>
           </div>
 
           <div className="text-center">
             <p className={showScore
-              ? 'font-mono text-2xl font-black tracking-tight sm:text-4xl'
+              ? 'font-mono text-2xl font-black tracking-tight sm:text-3xl'
               : 'font-mono text-sm font-bold text-muted-foreground sm:text-base'}>
               {showScore
                 ? `${game.awayScore ?? '-'} : ${game.homeScore ?? '-'}`
@@ -726,18 +727,18 @@ function GameHeader({ game }: { game: GameApiResponse }) {
             )}
           </div>
 
-          <div className="flex min-w-0 flex-col items-center gap-3 text-center">
+          <div className="flex min-w-0 flex-col items-center gap-2 text-center">
             <TeamMark teamName={homeName} />
             <div className="min-w-0">
               <p className="text-xs font-semibold text-muted-foreground">홈</p>
-              <h1 className="mt-1 break-keep text-base font-black sm:text-2xl">{homeName}</h1>
+              <h1 className="mt-0.5 break-keep text-base font-black sm:text-xl">{homeName}</h1>
             </div>
           </div>
         </div>
 
         {game.status === 'FINISHED' && game.result == null && (
-          <p className="mt-6 text-center text-xs text-muted-foreground">
-            표시 점수는 마지막 수집 점수이며 공식 결과 확인 중입니다.
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            공식 최종 결과를 확인 중입니다.
           </p>
         )}
       </CardContent>
