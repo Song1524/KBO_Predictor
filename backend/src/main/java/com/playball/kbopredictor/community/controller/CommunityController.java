@@ -8,6 +8,9 @@ import com.playball.kbopredictor.community.dto.CommunityPageResponse;
 import com.playball.kbopredictor.community.dto.CommunityPostListItemResponse;
 import com.playball.kbopredictor.community.dto.CommunityPostRequest;
 import com.playball.kbopredictor.community.dto.CommunityPostResponse;
+import com.playball.kbopredictor.community.dto.CommunityReactionRequest;
+import com.playball.kbopredictor.community.dto.CommunityReactionResponse;
+import com.playball.kbopredictor.community.service.CommunityReactionService;
 import com.playball.kbopredictor.community.service.CommunityService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -37,6 +40,7 @@ import java.util.List;
 public class CommunityController {
 
     private final CommunityService communityService;
+    private final CommunityReactionService reactionService;
 
     @GetMapping("/posts")
     public ResponseEntity<CommunityPageResponse<CommunityPostListItemResponse>>
@@ -49,9 +53,13 @@ public class CommunityController {
 
     @GetMapping("/posts/{postId}")
     public ResponseEntity<CommunityPostResponse> getPost(
+            @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
             @PathVariable @Positive Long postId
     ) {
-        return ResponseEntity.ok(communityService.getPost(postId));
+        return ResponseEntity.ok(communityService.getPost(
+                postId,
+                userId(authenticatedUser)
+        ));
     }
 
     @PostMapping("/posts")
@@ -94,9 +102,13 @@ public class CommunityController {
 
     @GetMapping("/posts/{postId}/comments")
     public ResponseEntity<List<CommunityCommentResponse>> getComments(
+            @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
             @PathVariable @Positive Long postId
     ) {
-        return ResponseEntity.ok(communityService.getComments(postId));
+        return ResponseEntity.ok(communityService.getComments(
+                postId,
+                userId(authenticatedUser)
+        ));
     }
 
     @PostMapping("/posts/{postId}/comments")
@@ -137,5 +149,37 @@ public class CommunityController {
                 commentId,
                 request
         ));
+    }
+
+    @PutMapping("/posts/{postId}/reaction")
+    public ResponseEntity<CommunityReactionResponse> togglePostReaction(
+            @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+            @PathVariable @Positive Long postId,
+            @Valid @RequestBody CommunityReactionRequest request
+    ) {
+        return ResponseEntity.ok(reactionService.togglePostReaction(
+                authenticatedUser.getUserId(),
+                postId,
+                request.reaction()
+        ));
+    }
+
+    @PutMapping("/comments/{commentId}/reaction")
+    public ResponseEntity<CommunityReactionResponse> toggleCommentReaction(
+            @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+            @PathVariable @Positive Long commentId,
+            @Valid @RequestBody CommunityReactionRequest request
+    ) {
+        return ResponseEntity.ok(reactionService.toggleCommentReaction(
+                authenticatedUser.getUserId(),
+                commentId,
+                request.reaction()
+        ));
+    }
+
+    private Long userId(AuthenticatedUser authenticatedUser) {
+        return authenticatedUser == null
+                ? null
+                : authenticatedUser.getUserId();
     }
 }

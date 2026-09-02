@@ -4,8 +4,11 @@ import com.playball.kbopredictor.community.entity.CommunityComment;
 import com.playball.kbopredictor.community.entity.CommunityContentStatus;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import jakarta.persistence.LockModeType;
 
 import java.util.Collection;
 import java.util.List;
@@ -47,6 +50,19 @@ public interface CommunityCommentRepository
     @EntityGraph(attributePaths = {"post", "parent"})
     @Query("select comment from CommunityComment comment where comment.id = :id")
     Optional<CommunityComment> findByIdWithPostAndParent(@Param("id") Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {"user", "post", "parent"})
+    @Query("""
+            select comment
+            from CommunityComment comment
+            where comment.id = :id
+              and comment.status = :status
+            """)
+    Optional<CommunityComment> findByIdAndStatusForUpdate(
+            @Param("id") Long id,
+            @Param("status") CommunityContentStatus status
+    );
 
     long countByPostIdAndStatus(
             Long postId,

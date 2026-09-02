@@ -11,12 +11,15 @@ public record CommunityPostListItemResponse(
         String authorNickname,
         long viewCount,
         long commentCount,
+        long likeCount,
+        long dislikeCount,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
     public static CommunityPostListItemResponse from(
             CommunityPost post,
-            long commentCount
+            long commentCount,
+            CommunityReactionResponse reaction
     ) {
         return new CommunityPostListItemResponse(
                 post.getId(),
@@ -25,6 +28,8 @@ public record CommunityPostListItemResponse(
                 post.getUser().getNickname(),
                 post.getViewCount(),
                 commentCount,
+                reaction.likeCount(),
+                reaction.dislikeCount(),
                 post.getCreatedAt(),
                 post.getUpdatedAt()
         );

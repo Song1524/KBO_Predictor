@@ -6,6 +6,8 @@ import {
   Pencil,
   Reply as ReplyIcon,
   Send,
+  ThumbsDown,
+  ThumbsUp,
   Trash2,
   UserRound,
 } from 'lucide-react'
@@ -25,6 +27,8 @@ import { Separator } from '@/components/ui/separator'
 import type {
   CommunityCommentApiResponse,
   CommunityPostApiResponse,
+  CommunityReactionApiResponse,
+  CommunityReactionType,
 } from '@/lib/api-types'
 import { apiFetch } from '@/lib/api-client'
 import {
@@ -52,6 +56,8 @@ export function CommunityPostDetailPage() {
   const [editContent, setEditContent] = useState('')
   const [updatingCommentId, setUpdatingCommentId] = useState<number | null>(null)
   const [deletingCommentId, setDeletingCommentId] = useState<number | null>(null)
+  const [isUpdatingPostReaction, setIsUpdatingPostReaction] = useState(false)
+  const [updatingCommentReactionId, setUpdatingCommentReactionId] = useState<number | null>(null)
   const [isDeletingPost, setIsDeletingPost] = useState(false)
   const [confirmPostDelete, setConfirmPostDelete] = useState(false)
   const [error, setError] = useState('')
@@ -281,6 +287,9 @@ export function CommunityPostDetailPage() {
             content: null,
             deleted: true,
             edited: false,
+            likeCount: 0,
+            dislikeCount: 0,
+            myReaction: null,
           }]
         }
 
@@ -298,6 +307,103 @@ export function CommunityPostDetailPage() {
         : '댓글을 삭제하지 못했습니다.')
     } finally {
       setDeletingCommentId(null)
+    }
+  }
+
+  const togglePostReaction = async (
+    reaction: Exclude<CommunityReactionType, null>,
+  ) => {
+    if (!user) {
+      openLoginDialog()
+      setError('로그인 후 추천 또는 비추천할 수 있습니다.')
+      return
+    }
+    if (post?.authorId === user.id || isUpdatingPostReaction) return
+
+    try {
+      setIsUpdatingPostReaction(true)
+      setError('')
+      const response = await apiFetch(
+        `/api/community/posts/${postId}/reaction`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reaction }),
+        },
+      )
+      if (response.status === 401) {
+        openLoginDialog()
+        throw new Error('로그인 후 추천 또는 비추천할 수 있습니다.')
+      }
+      if (!response.ok) {
+        throw new Error(await communityApiError(
+          response,
+          '게시글 반응을 변경하지 못했습니다.',
+        ))
+      }
+      const updated = await response.json() as CommunityReactionApiResponse
+      setPost((current) => current == null
+        ? current
+        : { ...current, ...updated })
+    } catch (reactionError) {
+      console.error(reactionError)
+      setError(reactionError instanceof Error
+        ? reactionError.message
+        : '게시글 반응을 변경하지 못했습니다.')
+    } finally {
+      setIsUpdatingPostReaction(false)
+    }
+  }
+
+  const toggleCommentReaction = async (
+    commentId: number,
+    reaction: Exclude<CommunityReactionType, null>,
+  ) => {
+    if (!user) {
+      openLoginDialog()
+      setCommentError('로그인 후 추천 또는 비추천할 수 있습니다.')
+      return
+    }
+    if (updatingCommentReactionId != null) return
+
+    try {
+      setUpdatingCommentReactionId(commentId)
+      setCommentError('')
+      const response = await apiFetch(
+        `/api/community/comments/${commentId}/reaction`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reaction }),
+        },
+      )
+      if (response.status === 401) {
+        openLoginDialog()
+        throw new Error('로그인 후 추천 또는 비추천할 수 있습니다.')
+      }
+      if (!response.ok) {
+        throw new Error(await communityApiError(
+          response,
+          '댓글 반응을 변경하지 못했습니다.',
+        ))
+      }
+      const updated = await response.json() as CommunityReactionApiResponse
+      setComments((current) => current.map((comment) => {
+        if (comment.id === commentId) return { ...comment, ...updated }
+        return {
+          ...comment,
+          replies: comment.replies.map((reply) =>
+            reply.id === commentId ? { ...reply, ...updated } : reply,
+          ),
+        }
+      }))
+    } catch (reactionError) {
+      console.error(reactionError)
+      setCommentError(reactionError instanceof Error
+        ? reactionError.message
+        : '댓글 반응을 변경하지 못했습니다.')
+    } finally {
+      setUpdatingCommentReactionId(null)
     }
   }
 
@@ -477,6 +583,33 @@ export function CommunityPostDetailPage() {
                 {comment.content}
               </p>
             )}
+
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <Button
+                type="button"
+                variant={comment.myReaction === 'LIKE' ? 'default' : 'ghost'}
+                size="xs"
+                aria-pressed={comment.myReaction === 'LIKE'}
+                title={ownsComment ? '본인 댓글에는 반응할 수 없습니다.' : undefined}
+                disabled={ownsComment || updatingCommentReactionId != null}
+                onClick={() => void toggleCommentReaction(comment.id, 'LIKE')}
+              >
+                <ThumbsUp data-icon="inline-start" />
+                추천 {comment.likeCount.toLocaleString()}
+              </Button>
+              <Button
+                type="button"
+                variant={comment.myReaction === 'DISLIKE' ? 'destructive' : 'ghost'}
+                size="xs"
+                aria-pressed={comment.myReaction === 'DISLIKE'}
+                title={ownsComment ? '본인 댓글에는 반응할 수 없습니다.' : undefined}
+                disabled={ownsComment || updatingCommentReactionId != null}
+                onClick={() => void toggleCommentReaction(comment.id, 'DISLIKE')}
+              >
+                <ThumbsDown data-icon="inline-start" />
+                비추천 {comment.dislikeCount.toLocaleString()}
+              </Button>
+            </div>
           </>
         )}
 
@@ -601,8 +734,33 @@ export function CommunityPostDetailPage() {
                     {post.content}
                   </p>
 
+                  <div className="mt-6 flex flex-wrap items-center justify-center gap-2 border-t pt-5">
+                    <Button
+                      type="button"
+                      variant={post.myReaction === 'LIKE' ? 'default' : 'outline'}
+                      aria-pressed={post.myReaction === 'LIKE'}
+                      title={ownsPost ? '본인 게시글에는 반응할 수 없습니다.' : undefined}
+                      disabled={ownsPost || isUpdatingPostReaction}
+                      onClick={() => void togglePostReaction('LIKE')}
+                    >
+                      <ThumbsUp data-icon="inline-start" />
+                      추천 {post.likeCount.toLocaleString()}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={post.myReaction === 'DISLIKE' ? 'destructive' : 'outline'}
+                      aria-pressed={post.myReaction === 'DISLIKE'}
+                      title={ownsPost ? '본인 게시글에는 반응할 수 없습니다.' : undefined}
+                      disabled={ownsPost || isUpdatingPostReaction}
+                      onClick={() => void togglePostReaction('DISLIKE')}
+                    >
+                      <ThumbsDown data-icon="inline-start" />
+                      비추천 {post.dislikeCount.toLocaleString()}
+                    </Button>
+                  </div>
+
                   {(ownsPost || canDeletePost) && (
-                    <div className="mt-8 flex flex-wrap justify-end gap-2 border-t pt-4">
+                    <div className="mt-4 flex flex-wrap justify-end gap-2">
                       {ownsPost && (
                         <Link
                           to={`/community/posts/${post.id}/edit`}

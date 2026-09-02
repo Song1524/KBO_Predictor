@@ -119,12 +119,23 @@ export type CommunityPostListItemApiResponse = {
   authorNickname: string
   viewCount: number
   commentCount: number
+  likeCount: number
+  dislikeCount: number
   createdAt: string
   updatedAt: string
 }
 
 export type CommunityPostApiResponse = CommunityPostListItemApiResponse & {
   content: string
+  myReaction: CommunityReactionType
+}
+
+export type CommunityReactionType = 'LIKE' | 'DISLIKE' | null
+
+export type CommunityReactionApiResponse = {
+  likeCount: number
+  dislikeCount: number
+  myReaction: CommunityReactionType
 }
 
 export type CommunityCommentApiResponse = {
@@ -136,6 +147,9 @@ export type CommunityCommentApiResponse = {
   content: string | null
   deleted: boolean
   edited: boolean
+  likeCount: number
+  dislikeCount: number
+  myReaction: CommunityReactionType
   createdAt: string
   updatedAt: string
   replies: CommunityCommentApiResponse[]

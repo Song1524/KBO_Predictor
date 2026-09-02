@@ -7,6 +7,7 @@ import com.playball.kbopredictor.community.dto.CommunityPageResponse;
 import com.playball.kbopredictor.community.dto.CommunityPostListItemResponse;
 import com.playball.kbopredictor.community.dto.CommunityPostRequest;
 import com.playball.kbopredictor.community.dto.CommunityPostResponse;
+import com.playball.kbopredictor.community.dto.CommunityReactionResponse;
 import com.playball.kbopredictor.community.entity.CommunityComment;
 import com.playball.kbopredictor.community.entity.CommunityContentStatus;
 import com.playball.kbopredictor.community.entity.CommunityPost;
@@ -38,6 +39,7 @@ public class CommunityService {
     private final CommunityPostRepository postRepository;
     private final CommunityCommentRepository commentRepository;
     private final UserRepository userRepository;
+    private final CommunityReactionService reactionService;
     private final Clock clock;
 
     public CommunityPageResponse<CommunityPostListItemResponse> getPosts(
@@ -70,20 +72,38 @@ public class CommunityService {
                                 CommunityCommentRepository.CommentCount::getPostId,
                                 CommunityCommentRepository.CommentCount::getCommentCount
                         ));
+        Map<Long, CommunityReactionResponse> reactions =
+                reactionService.getPostReactions(postIds, null);
 
         return CommunityPageResponse.from(posts.map(post ->
                 CommunityPostListItemResponse.from(
                         post,
-                        commentCounts.getOrDefault(post.getId(), 0L)
+                        commentCounts.getOrDefault(post.getId(), 0L),
+                        reactions.getOrDefault(
+                                post.getId(),
+                                CommunityReactionResponse.empty()
+                        )
                 )
         ));
     }
 
     @Transactional
     public CommunityPostResponse getPost(Long postId) {
+        return getPostInternal(postId, null);
+    }
+
+    @Transactional
+    public CommunityPostResponse getPost(Long postId, Long viewerUserId) {
+        return getPostInternal(postId, viewerUserId);
+    }
+
+    private CommunityPostResponse getPostInternal(
+            Long postId,
+            Long viewerUserId
+    ) {
         CommunityPost post = activePost(postId);
         post.incrementViewCount();
-        return postResponse(post);
+        return postResponse(post, viewerUserId);
     }
 
     @Transactional
@@ -98,7 +118,11 @@ public class CommunityService {
                 request.content(),
                 now()
         ));
-        return CommunityPostResponse.from(post, 0);
+        return CommunityPostResponse.from(
+                post,
+                0,
+                CommunityReactionResponse.empty()
+        );
     }
 
     @Transactional
@@ -112,7 +136,7 @@ public class CommunityService {
             throw forbidden("본인이 작성한 게시글만 수정할 수 있습니다.");
         }
         post.update(request.title(), request.content(), now());
-        return postResponse(post);
+        return postResponse(post, authenticatedUserId);
     }
 
     @Transactional
@@ -124,11 +148,27 @@ public class CommunityService {
     }
 
     public List<CommunityCommentResponse> getComments(Long postId) {
+        return getComments(postId, null);
+    }
+
+    public List<CommunityCommentResponse> getComments(
+            Long postId,
+            Long viewerUserId
+    ) {
         activePost(postId);
         List<CommunityComment> comments = commentRepository
                 .findVisibleThreadComments(
                         postId,
                         CommunityContentStatus.ACTIVE
+                );
+        List<Long> activeCommentIds = comments.stream()
+                .filter(comment -> !comment.isDeleted())
+                .map(CommunityComment::getId)
+                .toList();
+        Map<Long, CommunityReactionResponse> reactions =
+                reactionService.getCommentReactions(
+                        activeCommentIds,
+                        viewerUserId
                 );
         Map<Long, List<CommunityComment>> repliesByParent = comments.stream()
                 .filter(CommunityComment::isReply)
@@ -142,10 +182,21 @@ public class CommunityService {
                 .filter(comment -> !comment.isReply())
                 .map(comment -> CommunityCommentResponse.from(
                         comment,
+                        reactions.getOrDefault(
+                                comment.getId(),
+                                CommunityReactionResponse.empty()
+                        ),
                         repliesByParent
                                 .getOrDefault(comment.getId(), List.of())
                                 .stream()
-                                .map(CommunityCommentResponse::from)
+                                .map(reply -> CommunityCommentResponse.from(
+                                        reply,
+                                        reactions.getOrDefault(
+                                                reply.getId(),
+                                                CommunityReactionResponse.empty()
+                                        ),
+                                        List.of()
+                                ))
                                 .toList()
                 ))
                 .toList();
@@ -186,7 +237,14 @@ public class CommunityService {
             throw forbidden("본인이 작성한 댓글만 수정할 수 있습니다.");
         }
         comment.update(request.content(), now());
-        return CommunityCommentResponse.from(comment);
+        return CommunityCommentResponse.from(
+                comment,
+                reactionService.getCommentReaction(
+                        commentId,
+                        authenticatedUserId
+                ),
+                List.of()
+        );
     }
 
     @Transactional
@@ -197,12 +255,22 @@ public class CommunityService {
         comment.delete(now());
     }
 
-    private CommunityPostResponse postResponse(CommunityPost post) {
+    private CommunityPostResponse postResponse(
+            CommunityPost post,
+            Long viewerUserId
+    ) {
         long commentCount = commentRepository.countByPostIdAndStatus(
                 post.getId(),
                 CommunityContentStatus.ACTIVE
         );
-        return CommunityPostResponse.from(post, commentCount);
+        return CommunityPostResponse.from(
+                post,
+                commentCount,
+                reactionService.getPostReaction(
+                        post.getId(),
+                        viewerUserId
+                )
+        );
     }
 
     private CommunityComment replyParent(

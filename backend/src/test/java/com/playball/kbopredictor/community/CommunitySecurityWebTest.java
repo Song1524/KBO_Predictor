@@ -8,6 +8,9 @@ import com.playball.kbopredictor.community.dto.CommunityCommentResponse;
 import com.playball.kbopredictor.community.dto.CommunityPageResponse;
 import com.playball.kbopredictor.community.dto.CommunityPostRequest;
 import com.playball.kbopredictor.community.dto.CommunityPostResponse;
+import com.playball.kbopredictor.community.dto.CommunityReactionResponse;
+import com.playball.kbopredictor.community.entity.CommunityReactionType;
+import com.playball.kbopredictor.community.service.CommunityReactionService;
 import com.playball.kbopredictor.community.service.CommunityService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,6 +52,8 @@ class CommunitySecurityWebTest {
     @MockitoBean
     private CommunityService communityService;
     @MockitoBean
+    private CommunityReactionService reactionService;
+    @MockitoBean
     private KboUserDetailsService userDetailsService;
 
     @Test
@@ -58,8 +63,8 @@ class CommunitySecurityWebTest {
                         List.of(), 0, 15, 0, 0, true, true
                 )
         );
-        when(communityService.getPost(POST_ID)).thenReturn(postResponse());
-        when(communityService.getComments(POST_ID)).thenReturn(List.of());
+        when(communityService.getPost(POST_ID, null)).thenReturn(postResponse());
+        when(communityService.getComments(POST_ID, null)).thenReturn(List.of());
 
         mockMvc.perform(get("/api/community/posts"))
                 .andExpect(status().isOk())
@@ -104,6 +109,99 @@ class CommunitySecurityWebTest {
                 .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(communityService);
+        verifyNoInteractions(reactionService);
+    }
+
+    @Test
+    void anonymousUserCannotChangeReactions() throws Exception {
+        mockMvc.perform(put(
+                        "/api/community/posts/{postId}/reaction",
+                        POST_ID
+                )
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reaction": "LIKE"}
+                                """))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(put(
+                        "/api/community/comments/{commentId}/reaction",
+                        COMMENT_ID
+                )
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reaction": "DISLIKE"}
+                                """))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(reactionService);
+    }
+
+    @Test
+    void reactionMutationRequiresCsrf() throws Exception {
+        mockMvc.perform(put(
+                        "/api/community/posts/{postId}/reaction",
+                        POST_ID
+                )
+                        .with(user(authenticatedUser("ROLE_USER")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reaction": "LIKE"}
+                                """))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(reactionService);
+    }
+
+    @Test
+    void authenticatedUserCanReachReactionEndpoints() throws Exception {
+        CommunityReactionResponse response = new CommunityReactionResponse(
+                2,
+                1,
+                CommunityReactionType.LIKE
+        );
+        when(reactionService.togglePostReaction(
+                USER_ID,
+                POST_ID,
+                CommunityReactionType.LIKE
+        )).thenReturn(response);
+        when(reactionService.toggleCommentReaction(
+                USER_ID,
+                COMMENT_ID,
+                CommunityReactionType.DISLIKE
+        )).thenReturn(new CommunityReactionResponse(
+                0,
+                1,
+                CommunityReactionType.DISLIKE
+        ));
+
+        mockMvc.perform(put(
+                        "/api/community/posts/{postId}/reaction",
+                        POST_ID
+                )
+                        .with(user(authenticatedUser("ROLE_USER")))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reaction": "LIKE"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.likeCount").value(2))
+                .andExpect(jsonPath("$.myReaction").value("LIKE"));
+        mockMvc.perform(put(
+                        "/api/community/comments/{commentId}/reaction",
+                        COMMENT_ID
+                )
+                        .with(user(authenticatedUser("ROLE_USER")))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reaction": "DISLIKE"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dislikeCount").value(1))
+                .andExpect(jsonPath("$.myReaction").value("DISLIKE"));
     }
 
     @Test
@@ -253,6 +351,9 @@ class CommunitySecurityWebTest {
                 "야구왕",
                 3,
                 0,
+                0,
+                0,
+                null,
                 now,
                 now
         );
@@ -269,6 +370,9 @@ class CommunitySecurityWebTest {
                 "댓글입니다.",
                 false,
                 false,
+                0,
+                0,
+                null,
                 now,
                 now,
                 List.of()

@@ -7,9 +7,14 @@ import com.playball.kbopredictor.community.dto.CommunityPageResponse;
 import com.playball.kbopredictor.community.dto.CommunityPostListItemResponse;
 import com.playball.kbopredictor.community.dto.CommunityPostRequest;
 import com.playball.kbopredictor.community.dto.CommunityPostResponse;
+import com.playball.kbopredictor.community.dto.CommunityReactionResponse;
 import com.playball.kbopredictor.community.entity.CommunityContentStatus;
+import com.playball.kbopredictor.community.entity.CommunityReactionType;
+import com.playball.kbopredictor.community.repository.CommunityCommentReactionRepository;
 import com.playball.kbopredictor.community.repository.CommunityCommentRepository;
+import com.playball.kbopredictor.community.repository.CommunityPostReactionRepository;
 import com.playball.kbopredictor.community.repository.CommunityPostRepository;
+import com.playball.kbopredictor.community.service.CommunityReactionService;
 import com.playball.kbopredictor.community.service.CommunityService;
 import com.playball.kbopredictor.user.entity.User;
 import com.playball.kbopredictor.user.repository.UserRepository;
@@ -34,6 +39,11 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -60,9 +70,15 @@ class CommunityServiceIntegrationTest {
     @Autowired
     private CommunityService communityService;
     @Autowired
+    private CommunityReactionService reactionService;
+    @Autowired
     private CommunityPostRepository postRepository;
     @Autowired
     private CommunityCommentRepository commentRepository;
+    @Autowired
+    private CommunityPostReactionRepository postReactionRepository;
+    @Autowired
+    private CommunityCommentReactionRepository commentReactionRepository;
     @Autowired
     private UserRepository userRepository;
     @Autowired
@@ -87,10 +103,209 @@ class CommunityServiceIntegrationTest {
     @AfterEach
     void cleanDatabase() {
         transactionTemplate.executeWithoutResult(status -> {
+            commentReactionRepository.deleteAllInBatch();
+            postReactionRepository.deleteAllInBatch();
             commentRepository.deleteAllInBatch();
             postRepository.deleteAllInBatch();
             userRepository.deleteAllInBatch();
         });
+    }
+
+    @Test
+    void postReactionsToggleAndAggregateWithoutAllowingOwnerOrDeletedPost() {
+        Long postId = createPost("반응 전이 게시글");
+
+        var liked = reactionService.togglePostReaction(
+                otherUserId,
+                postId,
+                CommunityReactionType.LIKE
+        );
+        assertThat(liked.likeCount()).isEqualTo(1);
+        assertThat(liked.dislikeCount()).isZero();
+        assertThat(liked.myReaction()).isEqualTo(CommunityReactionType.LIKE);
+
+        var cancelled = reactionService.togglePostReaction(
+                otherUserId,
+                postId,
+                CommunityReactionType.LIKE
+        );
+        assertThat(cancelled.likeCount()).isZero();
+        assertThat(cancelled.myReaction()).isNull();
+
+        reactionService.togglePostReaction(
+                otherUserId,
+                postId,
+                CommunityReactionType.LIKE
+        );
+        var disliked = reactionService.togglePostReaction(
+                otherUserId,
+                postId,
+                CommunityReactionType.DISLIKE
+        );
+        assertThat(disliked.likeCount()).isZero();
+        assertThat(disliked.dislikeCount()).isEqualTo(1);
+        assertThat(disliked.myReaction())
+                .isEqualTo(CommunityReactionType.DISLIKE);
+
+        var switchedBack = reactionService.togglePostReaction(
+                otherUserId,
+                postId,
+                CommunityReactionType.LIKE
+        );
+        assertThat(switchedBack.likeCount()).isEqualTo(1);
+        assertThat(switchedBack.dislikeCount()).isZero();
+        assertThat(postReactionRepository.countByPostIdAndUserId(
+                postId,
+                otherUserId
+        )).isEqualTo(1);
+
+        reactionService.togglePostReaction(
+                adminId,
+                postId,
+                CommunityReactionType.DISLIKE
+        );
+        CommunityPostResponse viewedByOther = communityService.getPost(
+                postId,
+                otherUserId
+        );
+        assertThat(viewedByOther.likeCount()).isEqualTo(1);
+        assertThat(viewedByOther.dislikeCount()).isEqualTo(1);
+        assertThat(viewedByOther.myReaction())
+                .isEqualTo(CommunityReactionType.LIKE);
+        assertThat(communityService.getPost(postId, null).myReaction()).isNull();
+
+        CommunityPostListItemResponse listItem = communityService
+                .getPosts(0, 15)
+                .content()
+                .getFirst();
+        assertThat(listItem.likeCount()).isEqualTo(1);
+        assertThat(listItem.dislikeCount()).isEqualTo(1);
+
+        assertForbidden(() -> reactionService.togglePostReaction(
+                ownerId,
+                postId,
+                CommunityReactionType.LIKE
+        ));
+
+        communityService.deletePost(ownerId, postId);
+        assertStatus(HttpStatus.NOT_FOUND, () ->
+                reactionService.togglePostReaction(
+                        otherUserId,
+                        postId,
+                        CommunityReactionType.DISLIKE
+                )
+        );
+        assertThat(postReactionRepository.count()).isEqualTo(2);
+    }
+
+    @Test
+    void commentAndReplyReactionsRespectDeletionAndPlaceholderPolicy() {
+        Long postId = createPost("댓글 반응 게시글");
+        CommunityCommentResponse parent = communityService.createComment(
+                ownerId,
+                postId,
+                new CommunityCommentRequest("부모 댓글")
+        );
+        CommunityCommentResponse reply = communityService.createComment(
+                otherUserId,
+                postId,
+                new CommunityCommentRequest("답글", parent.id())
+        );
+
+        reactionService.toggleCommentReaction(
+                otherUserId,
+                parent.id(),
+                CommunityReactionType.LIKE
+        );
+        reactionService.toggleCommentReaction(
+                ownerId,
+                reply.id(),
+                CommunityReactionType.DISLIKE
+        );
+
+        List<CommunityCommentResponse> viewed = communityService.getComments(
+                postId,
+                otherUserId
+        );
+        assertThat(viewed.getFirst().likeCount()).isEqualTo(1);
+        assertThat(viewed.getFirst().myReaction())
+                .isEqualTo(CommunityReactionType.LIKE);
+        assertThat(viewed.getFirst().replies().getFirst().dislikeCount())
+                .isEqualTo(1);
+        assertThat(viewed.getFirst().replies().getFirst().myReaction()).isNull();
+        assertThat(communityService.getComments(postId, null)
+                .getFirst().myReaction()).isNull();
+
+        assertForbidden(() -> reactionService.toggleCommentReaction(
+                ownerId,
+                parent.id(),
+                CommunityReactionType.LIKE
+        ));
+        assertForbidden(() -> reactionService.toggleCommentReaction(
+                otherUserId,
+                reply.id(),
+                CommunityReactionType.LIKE
+        ));
+
+        communityService.deleteComment(ownerId, parent.id());
+        CommunityCommentResponse placeholder = communityService
+                .getComments(postId, otherUserId)
+                .getFirst();
+        assertThat(placeholder.deleted()).isTrue();
+        assertThat(placeholder.likeCount()).isZero();
+        assertThat(placeholder.dislikeCount()).isZero();
+        assertThat(placeholder.myReaction()).isNull();
+        assertThat(placeholder.replies()).extracting(CommunityCommentResponse::id)
+                .containsExactly(reply.id());
+
+        assertStatus(HttpStatus.NOT_FOUND, () ->
+                reactionService.toggleCommentReaction(
+                        adminId,
+                        parent.id(),
+                        CommunityReactionType.DISLIKE
+                )
+        );
+
+        communityService.deleteComment(otherUserId, reply.id());
+        assertThat(communityService.getComments(postId, otherUserId)).isEmpty();
+        assertThat(commentReactionRepository.count()).isEqualTo(2);
+    }
+
+    @Test
+    void concurrentIdenticalReactionsAreSerializedWithoutDuplicateRows()
+            throws Exception {
+        Long postId = createPost("동시 반응 게시글");
+        CommunityCommentResponse comment = communityService.createComment(
+                ownerId,
+                postId,
+                new CommunityCommentRequest("동시 반응 댓글")
+        );
+
+        runConcurrently(() -> reactionService.togglePostReaction(
+                otherUserId,
+                postId,
+                CommunityReactionType.LIKE
+        ));
+        assertThat(postReactionRepository.countByPostIdAndUserId(
+                postId,
+                otherUserId
+        )).isZero();
+        assertThat(reactionService.getPostReaction(postId, otherUserId))
+                .isEqualTo(CommunityReactionResponse.empty());
+
+        runConcurrently(() -> reactionService.toggleCommentReaction(
+                otherUserId,
+                comment.id(),
+                CommunityReactionType.DISLIKE
+        ));
+        assertThat(commentReactionRepository.countByCommentIdAndUserId(
+                comment.id(),
+                otherUserId
+        )).isZero();
+        assertThat(reactionService.getCommentReaction(
+                comment.id(),
+                otherUserId
+        )).isEqualTo(CommunityReactionResponse.empty());
     }
 
     @Test
@@ -379,6 +594,29 @@ class CommunityServiceIntegrationTest {
                 ownerId,
                 new CommunityPostRequest(title, "게시글 본문")
         ).id();
+    }
+
+    private void runConcurrently(Runnable action) throws Exception {
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            List<Future<?>> futures = new ArrayList<>();
+            for (int index = 0; index < 2; index++) {
+                futures.add(executor.submit(() -> {
+                    ready.countDown();
+                    if (!start.await(5, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("동시 요청 시작 대기 실패");
+                    }
+                    action.run();
+                    return null;
+                }));
+            }
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            for (Future<?> future : futures) {
+                future.get(10, TimeUnit.SECONDS);
+            }
+        }
     }
 
     private User createUser(String prefix, String role) {

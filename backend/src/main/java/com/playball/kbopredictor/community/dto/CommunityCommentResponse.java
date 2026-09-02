@@ -1,6 +1,7 @@
 package com.playball.kbopredictor.community.dto;
 
 import com.playball.kbopredictor.community.entity.CommunityComment;
+import com.playball.kbopredictor.community.entity.CommunityReactionType;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -14,16 +15,31 @@ public record CommunityCommentResponse(
         String content,
         boolean deleted,
         boolean edited,
+        long likeCount,
+        long dislikeCount,
+        CommunityReactionType myReaction,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         List<CommunityCommentResponse> replies
 ) {
     public static CommunityCommentResponse from(CommunityComment comment) {
-        return from(comment, List.of());
+        return from(
+                comment,
+                CommunityReactionResponse.empty(),
+                List.of()
+        );
     }
 
     public static CommunityCommentResponse from(
             CommunityComment comment,
+            List<CommunityCommentResponse> replies
+    ) {
+        return from(comment, CommunityReactionResponse.empty(), replies);
+    }
+
+    public static CommunityCommentResponse from(
+            CommunityComment comment,
+            CommunityReactionResponse reaction,
             List<CommunityCommentResponse> replies
     ) {
         if (comment.isDeleted()) {
@@ -40,6 +56,9 @@ public record CommunityCommentResponse(
                 comment.getContent(),
                 false,
                 comment.getUpdatedAt().isAfter(comment.getCreatedAt()),
+                reaction.likeCount(),
+                reaction.dislikeCount(),
+                reaction.myReaction(),
                 comment.getCreatedAt(),
                 comment.getUpdatedAt(),
                 List.copyOf(replies)
@@ -59,6 +78,9 @@ public record CommunityCommentResponse(
                 null,
                 true,
                 false,
+                0,
+                0,
+                null,
                 comment.getCreatedAt(),
                 comment.getUpdatedAt(),
                 List.copyOf(replies)

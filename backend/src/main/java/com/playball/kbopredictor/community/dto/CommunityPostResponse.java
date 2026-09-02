@@ -1,6 +1,7 @@
 package com.playball.kbopredictor.community.dto;
 
 import com.playball.kbopredictor.community.entity.CommunityPost;
+import com.playball.kbopredictor.community.entity.CommunityReactionType;
 
 import java.time.LocalDateTime;
 
@@ -12,12 +13,16 @@ public record CommunityPostResponse(
         String authorNickname,
         long viewCount,
         long commentCount,
+        long likeCount,
+        long dislikeCount,
+        CommunityReactionType myReaction,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
     public static CommunityPostResponse from(
             CommunityPost post,
-            long commentCount
+            long commentCount,
+            CommunityReactionResponse reaction
     ) {
         return new CommunityPostResponse(
                 post.getId(),
@@ -27,6 +32,9 @@ public record CommunityPostResponse(
                 post.getUser().getNickname(),
                 post.getViewCount(),
                 commentCount,
+                reaction.likeCount(),
+                reaction.dislikeCount(),
+                reaction.myReaction(),
                 post.getCreatedAt(),
                 post.getUpdatedAt()
         );

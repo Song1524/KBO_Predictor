@@ -1,4 +1,11 @@
-import { ChevronLeft, ChevronRight, Eye, MessageCircle, PenLine } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  MessageCircle,
+  PenLine,
+  ThumbsUp,
+} from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth-context'
@@ -152,25 +159,30 @@ export function CommunityPage() {
             {!isLoading && !error && posts.length > 0 && (
               <>
                 <div className="hidden md:block">
-                  <div className="grid grid-cols-[minmax(0,1fr)_130px_90px_72px_72px] border-b bg-muted/40 px-5 py-3 text-xs font-semibold text-muted-foreground">
+                  <div className="grid grid-cols-[minmax(0,1fr)_130px_90px_64px_64px_64px] border-b bg-muted/40 px-5 py-3 text-xs font-semibold text-muted-foreground">
                     <span>제목</span>
                     <span>작성자</span>
                     <span>작성일</span>
                     <span className="text-center">조회</span>
                     <span className="text-center">댓글</span>
+                    <span className="text-center">추천</span>
                   </div>
                   <div className="divide-y">
                     {posts.map((post) => (
                       <Link
                         key={post.id}
                         to={`/community/posts/${post.id}`}
-                        className="grid grid-cols-[minmax(0,1fr)_130px_90px_72px_72px] items-center px-5 py-4 transition-colors hover:bg-muted/30"
+                        className="grid grid-cols-[minmax(0,1fr)_130px_90px_64px_64px_64px] items-center px-5 py-4 transition-colors hover:bg-muted/30"
                       >
                         <span className="truncate pr-5 font-semibold">{post.title}</span>
                         <span className="truncate text-sm">{post.authorNickname}</span>
                         <span className="text-sm text-muted-foreground">{formatCommunityListDate(post.createdAt)}</span>
                         <span className="text-center font-mono text-sm text-muted-foreground">{post.viewCount}</span>
                         <span className="text-center font-mono text-sm font-semibold">{post.commentCount}</span>
+                        <span className="flex items-center justify-center gap-1 font-mono text-sm font-semibold text-primary">
+                          <ThumbsUp className="size-3.5" />
+                          {post.likeCount}
+                        </span>
                       </Link>
                     ))}
                   </div>
@@ -189,6 +201,7 @@ export function CommunityPage() {
                         <span>{formatCommunityListDate(post.createdAt)}</span>
                         <span className="ml-auto flex items-center gap-1"><Eye className="size-3" />{post.viewCount}</span>
                         <span className="flex items-center gap-1"><MessageCircle className="size-3" />{post.commentCount}</span>
+                        <span className="flex items-center gap-1 text-primary"><ThumbsUp className="size-3" />{post.likeCount}</span>
                       </div>
                     </Link>
                   ))}
