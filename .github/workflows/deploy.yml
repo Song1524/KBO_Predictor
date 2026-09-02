@@ -141,9 +141,77 @@ jobs:
           set -e
 
           sudo -u ubuntu -H bash <<'DEPLOY_AS_UBUNTU'
-          set -e
+          set -euo pipefail
 
           cd /home/ubuntu/KBO_Predictor
+
+          MIN_ROOT_FREE_KB=$((2 * 1024 * 1024))
+          BACKEND_ROLLBACK_IMAGE="kbo-predictor-backend:rollback"
+          FRONTEND_ROLLBACK_IMAGE="kbo-predictor-frontend:rollback"
+
+          print_root_disk_usage() {
+            local label="$1"
+            echo "=== ${label} ==="
+            df -h /
+          }
+
+          print_container_health() {
+            echo "=== Final container health ==="
+            docker compose ps
+
+            for service in db backend frontend; do
+              local container_id
+              local state
+              local health
+              container_id="$(docker compose ps -q "$service")"
+
+              if [ -z "$container_id" ]; then
+                echo "${service}: container not found"
+                continue
+              fi
+
+              state="$(docker inspect --format '{{.State.Status}}' "$container_id")"
+              health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}not-configured{{end}}' "$container_id")"
+              echo "${service}: state=${state}, health=${health}"
+            done
+          }
+
+          preserve_rollback_image() {
+            local service="$1"
+            local rollback_image="$2"
+            local container_id
+            local image_id
+
+            container_id="$(docker compose ps -q "$service")"
+            if [ -z "$container_id" ]; then
+              echo "${service}: no running image to preserve for rollback."
+              return
+            fi
+
+            image_id="$(docker inspect --format '{{.Image}}' "$container_id")"
+            docker image tag "$image_id" "$rollback_image"
+            echo "${service}: preserved ${image_id} as ${rollback_image}."
+          }
+
+          print_root_disk_usage "Root disk usage before deployment"
+          echo "=== Docker disk usage before deployment ==="
+          docker system df
+
+          ROOT_AVAILABLE_KB="$(df -Pk / | awk 'NR == 2 {print $4}')"
+          if [ -z "$ROOT_AVAILABLE_KB" ] || ! [[ "$ROOT_AVAILABLE_KB" =~ ^[0-9]+$ ]]; then
+            echo "Cannot determine available root disk space."
+            exit 1
+          fi
+          if [ "$ROOT_AVAILABLE_KB" -lt "$MIN_ROOT_FREE_KB" ]; then
+            echo "Insufficient root disk space before Docker build."
+            echo "Available: ${ROOT_AVAILABLE_KB} KiB; required: ${MIN_ROOT_FREE_KB} KiB (2 GiB)."
+            echo "Deployment stopped before changing containers or pruning rollback data."
+            exit 1
+          fi
+
+          echo "=== Preserve current application images for one-step rollback ==="
+          preserve_rollback_image backend "$BACKEND_ROLLBACK_IMAGE"
+          preserve_rollback_image frontend "$FRONTEND_ROLLBACK_IMAGE"
 
           echo "=== Pull latest source ==="
           git fetch origin main
@@ -201,8 +269,33 @@ jobs:
             sleep 5
           done
 
-          echo "=== Final container status ==="
-          docker compose ps
+          print_container_health
+
+          print_root_disk_usage "Root disk usage before Docker cleanup"
+          echo "=== Docker disk usage before cleanup ==="
+          docker system df
+
+          ROOT_USED_BEFORE_CLEANUP_KB="$(df -Pk / | awk 'NR == 2 {print $3}')"
+
+          echo "=== Remove unused Docker build cache ==="
+          docker builder prune --all --force
+
+          echo "=== Remove dangling Docker images ==="
+          # Deliberately omit --all so the two :rollback images remain available.
+          docker image prune --force
+
+          ROOT_USED_AFTER_CLEANUP_KB="$(df -Pk / | awk 'NR == 2 {print $3}')"
+          ROOT_RECLAIMED_KB=$((ROOT_USED_BEFORE_CLEANUP_KB - ROOT_USED_AFTER_CLEANUP_KB))
+          if [ "$ROOT_RECLAIMED_KB" -lt 0 ]; then
+            ROOT_RECLAIMED_KB=0
+          fi
+          echo "Approximate root disk space reclaimed: ${ROOT_RECLAIMED_KB} KiB"
+
+          print_root_disk_usage "Root disk usage after deployment and cleanup"
+          echo "=== Docker disk usage after cleanup ==="
+          docker system df
+
+          print_container_health
 
           echo "=== Deployment completed ==="
           DEPLOY_AS_UBUNTU
