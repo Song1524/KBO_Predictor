@@ -2,6 +2,7 @@ import {
   ArrowLeft,
   Clock3,
   Eye,
+  Flag,
   MessageCircle,
   Pencil,
   Reply as ReplyIcon,
@@ -29,6 +30,8 @@ import type {
   CommunityPostApiResponse,
   CommunityReactionApiResponse,
   CommunityReactionType,
+  CommunityReportApiResponse,
+  CommunityReportReason,
 } from '@/lib/api-types'
 import { apiFetch } from '@/lib/api-client'
 import {
@@ -38,6 +41,18 @@ import {
   openLoginDialog,
 } from '@/lib/community-utils'
 import { cn } from '@/lib/utils'
+
+type ReportTarget = {
+  type: 'POST' | 'COMMENT'
+  id: number
+}
+
+const reportReasonLabels: Record<CommunityReportReason, string> = {
+  ABUSE: '욕설/비방',
+  SPAM: '광고/도배',
+  INAPPROPRIATE: '부적절한 내용',
+  OTHER: '기타',
+}
 
 export function CommunityPostDetailPage() {
   const { user } = useAuth()
@@ -60,6 +75,12 @@ export function CommunityPostDetailPage() {
   const [updatingCommentReactionId, setUpdatingCommentReactionId] = useState<number | null>(null)
   const [isDeletingPost, setIsDeletingPost] = useState(false)
   const [confirmPostDelete, setConfirmPostDelete] = useState(false)
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null)
+  const [reportReason, setReportReason] = useState<CommunityReportReason>('ABUSE')
+  const [reportDetail, setReportDetail] = useState('')
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false)
+  const [reportError, setReportError] = useState('')
+  const [reportNotice, setReportNotice] = useState('')
   const [error, setError] = useState('')
   const [commentError, setCommentError] = useState('')
 
@@ -436,6 +457,64 @@ export function CommunityPostDetailPage() {
     }
   }
 
+  const openReportDialog = (target: ReportTarget) => {
+    if (!user) {
+      openLoginDialog()
+      setReportNotice('로그인 후 신고할 수 있습니다.')
+      return
+    }
+    setReportTarget(target)
+    setReportReason('ABUSE')
+    setReportDetail('')
+    setReportError('')
+    setReportNotice('')
+  }
+
+  const submitReport = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!reportTarget || isSubmittingReport) return
+
+    try {
+      setIsSubmittingReport(true)
+      setReportError('')
+      const path = reportTarget.type === 'POST'
+        ? `/api/community/posts/${reportTarget.id}/reports`
+        : `/api/community/comments/${reportTarget.id}/reports`
+      const response = await apiFetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reason: reportReason,
+          detail: reportReason === 'OTHER'
+            ? reportDetail.trim() || null
+            : null,
+        }),
+      })
+      if (response.status === 401) {
+        openLoginDialog()
+        throw new Error('로그인 후 신고할 수 있습니다.')
+      }
+      if (!response.ok) {
+        throw new Error(await communityApiError(
+          response,
+          response.status === 409
+            ? '이미 신고한 콘텐츠입니다.'
+            : '신고를 접수하지 못했습니다.',
+        ))
+      }
+      await response.json() as CommunityReportApiResponse
+      setReportTarget(null)
+      setReportNotice('신고가 접수되었습니다.')
+    } catch (reportFailure) {
+      console.error(reportFailure)
+      setReportError(reportFailure instanceof Error
+        ? reportFailure.message
+        : '신고를 접수하지 못했습니다.')
+    } finally {
+      setIsSubmittingReport(false)
+    }
+  }
+
   const ownsPost = post?.authorId === user?.id
   const canDeletePost = ownsPost || isAdmin(user)
   const wasEdited = post != null && post.updatedAt !== post.createdAt
@@ -533,6 +612,21 @@ export function CommunityPostDetailPage() {
                   >
                     <ReplyIcon data-icon="inline-start" />
                     답글
+                  </Button>
+                )}
+                {!ownsComment && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    disabled={isSubmittingReport}
+                    onClick={() => openReportDialog({
+                      type: 'COMMENT',
+                      id: comment.id,
+                    })}
+                  >
+                    <Flag data-icon="inline-start" />
+                    신고
                   </Button>
                 )}
               </div>
@@ -757,6 +851,17 @@ export function CommunityPostDetailPage() {
                       <ThumbsDown data-icon="inline-start" />
                       비추천 {post.dislikeCount.toLocaleString()}
                     </Button>
+                    {!ownsPost && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={isSubmittingReport}
+                        onClick={() => openReportDialog({ type: 'POST', id: post.id })}
+                      >
+                        <Flag data-icon="inline-start" />
+                        신고
+                      </Button>
+                    )}
                   </div>
 
                   {(ownsPost || canDeletePost) && (
@@ -873,6 +978,91 @@ export function CommunityPostDetailPage() {
           </>
         )}
       </main>
+
+      {reportNotice && (
+        <div
+          role="status"
+          className="fixed right-4 bottom-4 z-40 max-w-[calc(100vw-2rem)] rounded-xl border bg-background px-4 py-3 text-sm font-semibold shadow-lg"
+        >
+          {reportNotice}
+        </div>
+      )}
+
+      {reportTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="community-report-title"
+        >
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle id="community-report-title" className="flex items-center gap-2">
+                <Flag className="size-5" />
+                {reportTarget.type === 'POST' ? '게시글 신고' : '댓글 신고'}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                신고 내용은 관리자가 확인하며 자동으로 콘텐츠를 숨기지 않습니다.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <form className="grid gap-4" onSubmit={submitReport}>
+                <label className="grid gap-2 text-sm font-semibold">
+                  신고 사유
+                  <select
+                    className="h-10 rounded-md border bg-background px-3 font-normal"
+                    value={reportReason}
+                    disabled={isSubmittingReport}
+                    onChange={(event) => {
+                      setReportReason(event.target.value as CommunityReportReason)
+                      setReportError('')
+                    }}
+                  >
+                    {Object.entries(reportReasonLabels).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </label>
+
+                {reportReason === 'OTHER' && (
+                  <label className="grid gap-2 text-sm font-semibold">
+                    상세 사유 <span className="font-normal text-muted-foreground">(선택)</span>
+                    <textarea
+                      className="min-h-24 resize-y rounded-md border bg-background p-3 font-normal leading-6"
+                      value={reportDetail}
+                      maxLength={500}
+                      disabled={isSubmittingReport}
+                      placeholder="관리자가 확인할 수 있도록 필요한 내용을 입력해 주세요."
+                      onChange={(event) => setReportDetail(event.target.value)}
+                    />
+                    <span className="text-right text-xs font-normal text-muted-foreground">
+                      {reportDetail.length}/500
+                    </span>
+                  </label>
+                )}
+
+                {reportError && (
+                  <p role="alert" className="text-sm text-destructive">{reportError}</p>
+                )}
+
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isSubmittingReport}
+                    onClick={() => setReportTarget(null)}
+                  >
+                    취소
+                  </Button>
+                  <Button type="submit" disabled={isSubmittingReport}>
+                    {isSubmittingReport ? '접수 중...' : '신고'}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }

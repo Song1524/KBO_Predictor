@@ -223,3 +223,46 @@ export type HistoricalEvaluationResponse = {
   logLoss: number
   brierScore: number
 }
+
+export type AdminCommunityReportStatus =
+  | 'PENDING'
+  | 'RESOLVED'
+  | 'REJECTED'
+
+export type AdminCommunityReportResponse = {
+  reportType: 'POST' | 'COMMENT'
+  id: number
+  targetId: number
+  targetContent: string
+  contentDeleted: boolean
+  reporterId: number
+  reporterNickname: string
+  authorId: number
+  authorNickname: string
+  reason: 'ABUSE' | 'SPAM' | 'INAPPROPRIATE' | 'OTHER'
+  detail: string | null
+  status: AdminCommunityReportStatus
+  createdAt: string
+  processedAt: string | null
+  processedById: number | null
+  processedByNickname: string | null
+}
+
+export type AdminCommunityReportPageResponse = {
+  content: AdminCommunityReportResponse[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  first: boolean
+  last: boolean
+}
+
+export type AdminCommunityReportProcessResponse = {
+  reportType: 'POST' | 'COMMENT'
+  id: number
+  status: 'RESOLVED' | 'REJECTED'
+  processedAt: string
+  processedById: number
+  processedByNickname: string
+}

@@ -138,6 +138,21 @@ export type CommunityReactionApiResponse = {
   myReaction: CommunityReactionType
 }
 
+export type CommunityReportReason =
+  | 'ABUSE'
+  | 'SPAM'
+  | 'INAPPROPRIATE'
+  | 'OTHER'
+
+export type CommunityReportApiResponse = {
+  id: number
+  targetType: 'POST' | 'COMMENT'
+  targetId: number
+  reason: CommunityReportReason
+  status: 'PENDING'
+  createdAt: string
+}
+
 export type CommunityCommentApiResponse = {
   id: number
   postId: number

@@ -7,6 +7,7 @@ import {
   CalendarClock,
   CheckCircle2,
   Database,
+  Flag,
   LockKeyhole,
   RefreshCw,
   ServerCog,
@@ -30,6 +31,10 @@ import {
 import { Separator } from '@/components/ui/separator'
 import type {
   AdminGameResponse,
+  AdminCommunityReportPageResponse,
+  AdminCommunityReportResponse,
+  AdminCommunityReportStatus,
+  AdminCommunityReportProcessResponse,
   AdminSummaryResponse,
   BackfillResponse,
   GameModelComparisonResponse,
@@ -67,6 +72,19 @@ const statusVariants: Record<
   IN_PROGRESS: 'default',
   FINISHED: 'secondary',
   CANCELLED: 'destructive',
+}
+
+const reportReasonLabels = {
+  ABUSE: '욕설/비방',
+  SPAM: '광고/도배',
+  INAPPROPRIATE: '부적절한 내용',
+  OTHER: '기타',
+} as const
+
+const reportStatusLabels: Record<AdminCommunityReportStatus, string> = {
+  PENDING: '대기',
+  RESOLVED: '처리 완료',
+  REJECTED: '기각',
 }
 
 function localDate() {
@@ -194,6 +212,11 @@ export function AdminPage() {
   const [notice, setNotice] = useState('')
   const [busyAction, setBusyAction] = useState<string | null>(null)
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
+  const [reports, setReports] = useState<AdminCommunityReportPageResponse | null>(null)
+  const [reportStatus, setReportStatus] =
+    useState<AdminCommunityReportStatus | 'ALL'>('PENDING')
+  const [reportPage, setReportPage] = useState(0)
+  const [reportsLoading, setReportsLoading] = useState(false)
 
   const [gameSync, setGameSync] = useState<GameSyncResponse | null>(null)
   const [teamStatsSync, setTeamStatsSync] = useState<TeamStatsSyncResponse | null>(null)
@@ -225,6 +248,24 @@ export function AdminPage() {
       `/api/games?date=${selectedDate}`,
     ))
   }, [selectedDate])
+
+  const loadReports = useCallback(async () => {
+    try {
+      setReportsLoading(true)
+      const statusQuery = reportStatus === 'ALL'
+        ? ''
+        : `&status=${reportStatus}`
+      setReports(await requestJson<AdminCommunityReportPageResponse>(
+        `/api/admin/community/reports?page=${reportPage}&size=10${statusQuery}`,
+      ))
+    } catch (error) {
+      setPageError(error instanceof Error
+        ? error.message
+        : '커뮤니티 신고 목록을 불러오지 못했습니다.')
+    } finally {
+      setReportsLoading(false)
+    }
+  }, [reportPage, reportStatus])
 
   const loadShadow = useCallback(async () => {
     try {
@@ -267,6 +308,11 @@ export function AdminPage() {
     }
     void load()
   }, [authLoading, isAdmin, loadSummary, loadGames, loadShadow])
+
+  useEffect(() => {
+    if (authLoading || !isAdmin) return
+    void loadReports()
+  }, [authLoading, isAdmin, loadReports])
 
   const requestConfirmation = (
     key: string,
@@ -406,6 +452,28 @@ export function AdminPage() {
     }
   }
 
+  const processCommunityReport = (
+    report: AdminCommunityReportResponse,
+    nextStatus: 'RESOLVED' | 'REJECTED',
+  ) => requestConfirmation(
+    `community-report-${report.reportType}-${report.id}`,
+    nextStatus === 'RESOLVED' ? '신고 처리를 완료하시겠습니까?' : '신고를 기각하시겠습니까?',
+    '처리 상태와 담당 관리자, 처리 시각이 신고 원장에 기록됩니다. 콘텐츠는 자동 삭제되지 않습니다.',
+    async () => {
+      await requestJson<AdminCommunityReportProcessResponse>(
+        `/api/admin/community/reports/${report.reportType}/${report.id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ status: nextStatus }),
+        },
+      )
+      setNotice(nextStatus === 'RESOLVED'
+        ? '신고를 처리 완료 상태로 변경했습니다.'
+        : '신고를 기각했습니다.')
+      await loadReports()
+    },
+  )
+
   if (authLoading) {
     return <div className="min-h-screen bg-background"><AppHeader /><main className="mx-auto max-w-7xl px-4 py-16 text-center text-muted-foreground">권한을 확인하는 중입니다.</main></div>
   }
@@ -463,6 +531,126 @@ export function AdminPage() {
             <SummaryCard label="미정산 사용자 예측" value={summary?.pendingUserPredictionCount ?? 0} icon={<Users />} />
           </div>
         </section>
+
+        <Card>
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Flag className="size-5" /> 커뮤니티 신고 관리
+              </CardTitle>
+              <CardDescription className="mt-1">
+                신고 처리는 콘텐츠를 자동 삭제하지 않으며 원장은 계속 보존됩니다.
+              </CardDescription>
+            </div>
+            <label className="grid gap-1 text-xs font-semibold">
+              처리 상태
+              <select
+                className="h-9 rounded-md border bg-background px-3 text-sm font-normal"
+                value={reportStatus}
+                disabled={reportsLoading}
+                onChange={(event) => {
+                  setReportStatus(event.target.value as AdminCommunityReportStatus | 'ALL')
+                  setReportPage(0)
+                }}
+              >
+                <option value="PENDING">처리 대기</option>
+                <option value="RESOLVED">처리 완료</option>
+                <option value="REJECTED">기각</option>
+                <option value="ALL">전체</option>
+              </select>
+            </label>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {reportsLoading && !reports ? (
+              <p className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground">
+                신고 목록을 불러오는 중입니다.
+              </p>
+            ) : reports?.content.length === 0 ? (
+              <p className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground">
+                선택한 상태의 신고가 없습니다.
+              </p>
+            ) : (
+              reports?.content.map((report) => (
+                <article
+                  key={`${report.reportType}-${report.id}`}
+                  className="grid gap-3 rounded-xl border p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline">
+                        {report.reportType === 'POST' ? '게시글' : '댓글'} #{report.targetId}
+                      </Badge>
+                      <Badge variant={report.status === 'PENDING' ? 'default' : 'secondary'}>
+                        {reportStatusLabels[report.status]}
+                      </Badge>
+                      {report.contentDeleted && <Badge variant="destructive">삭제된 콘텐츠</Badge>}
+                    </div>
+                    <p className="mt-2 line-clamp-2 break-words text-sm font-semibold">
+                      {report.targetContent}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <span>작성자 <strong className="text-foreground">{report.authorNickname}</strong></span>
+                      <span>신고자 <strong className="text-foreground">{report.reporterNickname}</strong></span>
+                      <span>{formatDateTime(report.createdAt)}</span>
+                    </div>
+                    <p className="mt-2 text-sm">
+                      <strong>{reportReasonLabels[report.reason]}</strong>
+                      {report.detail && <span className="ml-2 text-muted-foreground">{report.detail}</span>}
+                    </p>
+                    {report.processedAt && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {report.processedByNickname} · {formatDateTime(report.processedAt)}
+                      </p>
+                    )}
+                  </div>
+                  {report.status === 'PENDING' && (
+                    <div className="flex gap-2 lg:justify-end">
+                      <Button
+                        size="sm"
+                        disabled={busyAction !== null}
+                        onClick={() => processCommunityReport(report, 'RESOLVED')}
+                      >
+                        처리 완료
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busyAction !== null}
+                        onClick={() => processCommunityReport(report, 'REJECTED')}
+                      >
+                        기각
+                      </Button>
+                    </div>
+                  )}
+                </article>
+              ))
+            )}
+
+            {reports && reports.totalPages > 1 && (
+              <div className="flex items-center justify-center gap-3 pt-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={reports.first || reportsLoading}
+                  onClick={() => setReportPage((page) => Math.max(0, page - 1))}
+                >
+                  이전
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  {reports.page + 1} / {reports.totalPages}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={reports.last || reportsLoading}
+                  onClick={() => setReportPage((page) => page + 1)}
+                >
+                  다음
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
           <Card>

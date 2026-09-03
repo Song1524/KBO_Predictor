@@ -2,6 +2,7 @@ package com.playball.kbopredictor.common.error;
 
 import com.playball.kbopredictor.auth.exception.SignupBadRequestException;
 import com.playball.kbopredictor.auth.exception.SignupConflictException;
+import com.playball.kbopredictor.community.exception.CommunityReportException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -49,6 +50,17 @@ public class ApiExceptionHandler {
                 HttpStatus.BAD_REQUEST,
                 exception.getMessage(),
                 Map.of(exception.getField(), exception.getMessage())
+        );
+    }
+
+    @ExceptionHandler(CommunityReportException.class)
+    public ResponseEntity<ApiErrorResponse> communityReport(
+            CommunityReportException exception
+    ) {
+        return response(
+                exception.getStatus(),
+                exception.getMessage(),
+                Map.of()
         );
     }
 
