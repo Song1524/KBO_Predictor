@@ -5,6 +5,7 @@ import com.playball.kbopredictor.community.dto.CommunityCommentRequest;
 import com.playball.kbopredictor.community.dto.CommunityCommentResponse;
 import com.playball.kbopredictor.community.dto.CommunityCommentUpdateRequest;
 import com.playball.kbopredictor.community.dto.CommunityPageResponse;
+import com.playball.kbopredictor.community.dto.CommunityPopularPostResponse;
 import com.playball.kbopredictor.community.dto.CommunityPostListItemResponse;
 import com.playball.kbopredictor.community.dto.CommunityPostRequest;
 import com.playball.kbopredictor.community.dto.CommunityPostResponse;
@@ -41,6 +42,11 @@ public class CommunityController {
 
     private final CommunityService communityService;
     private final CommunityReactionService reactionService;
+
+    @GetMapping("/popular-posts")
+    public ResponseEntity<List<CommunityPopularPostResponse>> getPopularPosts() {
+        return ResponseEntity.ok(communityService.getPopularPosts());
+    }
 
     @GetMapping("/posts")
     public ResponseEntity<CommunityPageResponse<CommunityPostListItemResponse>>

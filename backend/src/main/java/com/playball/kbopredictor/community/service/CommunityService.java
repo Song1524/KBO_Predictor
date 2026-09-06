@@ -4,6 +4,7 @@ import com.playball.kbopredictor.community.dto.CommunityCommentRequest;
 import com.playball.kbopredictor.community.dto.CommunityCommentResponse;
 import com.playball.kbopredictor.community.dto.CommunityCommentUpdateRequest;
 import com.playball.kbopredictor.community.dto.CommunityPageResponse;
+import com.playball.kbopredictor.community.dto.CommunityPopularPostResponse;
 import com.playball.kbopredictor.community.dto.CommunityPostListItemResponse;
 import com.playball.kbopredictor.community.dto.CommunityPostRequest;
 import com.playball.kbopredictor.community.dto.CommunityPostResponse;
@@ -11,7 +12,9 @@ import com.playball.kbopredictor.community.dto.CommunityReactionResponse;
 import com.playball.kbopredictor.community.entity.CommunityComment;
 import com.playball.kbopredictor.community.entity.CommunityContentStatus;
 import com.playball.kbopredictor.community.entity.CommunityPost;
+import com.playball.kbopredictor.community.entity.CommunityReactionType;
 import com.playball.kbopredictor.community.repository.CommunityCommentRepository;
+import com.playball.kbopredictor.community.repository.CommunityPostReactionRepository;
 import com.playball.kbopredictor.community.repository.CommunityPostRepository;
 import com.playball.kbopredictor.user.entity.User;
 import com.playball.kbopredictor.user.repository.UserRepository;
@@ -36,12 +39,45 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class CommunityService {
 
+    private static final int POPULAR_POST_LIMIT = 5;
+
     private final CommunityPostRepository postRepository;
     private final CommunityCommentRepository commentRepository;
+    private final CommunityPostReactionRepository postReactionRepository;
     private final UserRepository userRepository;
     private final CommunityReactionService reactionService;
     private final CommunityWriteGuard writeGuard;
     private final Clock clock;
+
+    public List<CommunityPopularPostResponse> getPopularPosts() {
+        List<CommunityPostReactionRepository.PopularPostCandidate> candidates =
+                postReactionRepository.findPopularPostCandidates(
+                        CommunityReactionType.LIKE,
+                        CommunityContentStatus.ACTIVE,
+                        now().minusHours(24),
+                        PageRequest.of(0, POPULAR_POST_LIMIT)
+                );
+        List<Long> postIds = candidates.stream()
+                .map(CommunityPostReactionRepository.PopularPostCandidate::getId)
+                .toList();
+        Map<Long, Long> commentCounts = postIds.isEmpty()
+                ? Map.of()
+                : commentRepository.countByPostIdsAndStatus(
+                                postIds,
+                                CommunityContentStatus.ACTIVE
+                        ).stream()
+                        .collect(Collectors.toMap(
+                                CommunityCommentRepository.CommentCount::getPostId,
+                                CommunityCommentRepository.CommentCount::getCommentCount
+                        ));
+
+        return candidates.stream()
+                .map(candidate -> CommunityPopularPostResponse.from(
+                        candidate,
+                        commentCounts.getOrDefault(candidate.getId(), 0L)
+                ))
+                .toList();
+    }
 
     public CommunityPageResponse<CommunityPostListItemResponse> getPosts(
             int page,

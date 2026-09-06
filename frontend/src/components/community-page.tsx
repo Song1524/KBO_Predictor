@@ -2,6 +2,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  Flame,
   MessageCircle,
   PenLine,
   ThumbsUp,
@@ -14,6 +15,7 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import type {
   CommunityPageApiResponse,
+  CommunityPopularPostApiResponse,
   CommunityPostListItemApiResponse,
 } from '@/lib/api-types'
 import { apiFetch } from '@/lib/api-client'
@@ -39,6 +41,38 @@ export function CommunityPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [reloadVersion, setReloadVersion] = useState(0)
+  const [popularPosts, setPopularPosts] = useState<CommunityPopularPostApiResponse[]>([])
+  const [isPopularLoading, setIsPopularLoading] = useState(true)
+  const [popularError, setPopularError] = useState('')
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const loadPopularPosts = async () => {
+      try {
+        setIsPopularLoading(true)
+        setPopularError('')
+        const response = await apiFetch('/api/community/popular-posts', {
+          signal: controller.signal,
+        })
+        if (!response.ok) {
+          throw new Error(await communityApiError(
+            response,
+            '인기글을 불러오지 못했습니다.',
+          ))
+        }
+        setPopularPosts(await response.json() as CommunityPopularPostApiResponse[])
+      } catch (loadError) {
+        if (loadError instanceof DOMException && loadError.name === 'AbortError') return
+        console.error(loadError)
+        setPopularError('인기글을 불러오지 못했습니다.')
+      } finally {
+        if (!controller.signal.aborted) setIsPopularLoading(false)
+      }
+    }
+
+    void loadPopularPosts()
+    return () => controller.abort()
+  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -124,6 +158,77 @@ export function CommunityPage() {
             {notice}
           </div>
         )}
+
+        <Card className="gap-0 overflow-hidden py-0">
+          <CardContent className="px-0">
+            <div className="flex items-center justify-between gap-3 border-b bg-primary/[0.04] px-4 py-3 sm:px-5">
+              <div className="flex items-center gap-2">
+                <span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <Flame className="size-4" aria-hidden="true" />
+                </span>
+                <div>
+                  <h2 className="font-bold">인기글</h2>
+                  <p className="text-xs text-muted-foreground">최근 24시간 추천 순</p>
+                </div>
+              </div>
+              <span className="text-xs font-medium text-muted-foreground">최대 5개</span>
+            </div>
+
+            {isPopularLoading && (
+              <div className="px-4 py-5 text-sm text-muted-foreground sm:px-5">
+                인기글을 불러오는 중입니다.
+              </div>
+            )}
+
+            {!isPopularLoading && popularError && (
+              <div className="px-4 py-4 text-sm text-muted-foreground sm:px-5" role="status">
+                {popularError} 일반 게시글은 계속 이용할 수 있습니다.
+              </div>
+            )}
+
+            {!isPopularLoading && !popularError && popularPosts.length === 0 && (
+              <div className="px-4 py-5 text-sm text-muted-foreground sm:px-5">
+                아직 인기글이 없습니다.
+              </div>
+            )}
+
+            {!isPopularLoading && !popularError && popularPosts.length > 0 && (
+              <div className="divide-y">
+                {popularPosts.map((post, index) => (
+                  <Link
+                    key={post.id}
+                    to={`/community/posts/${post.id}`}
+                    className="grid grid-cols-[28px_minmax(0,1fr)] items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/30 sm:grid-cols-[28px_minmax(0,1fr)_auto] sm:px-5"
+                  >
+                    <span className="flex size-7 items-center justify-center rounded-md bg-primary/10 font-mono text-sm font-bold text-primary">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">{post.title}</p>
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        {post.authorNickname} · {formatCommunityListDate(post.createdAt)}
+                      </p>
+                    </div>
+                    <div className="col-start-2 flex items-center gap-3 text-xs text-muted-foreground sm:col-start-auto">
+                      <span className="flex items-center gap-1 font-semibold text-primary">
+                        <ThumbsUp className="size-3.5" aria-hidden="true" />
+                        추천 {post.likeCount}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <MessageCircle className="size-3.5" aria-hidden="true" />
+                        {post.commentCount}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Eye className="size-3.5" aria-hidden="true" />
+                        {post.viewCount}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         <Card className="gap-0 py-0">
           <CardContent className="px-0">

@@ -37,6 +37,7 @@ public class SecurityConfig {
     };
 
     private static final String[] PUBLIC_COMMUNITY_READ_ENDPOINTS = {
+            "/api/community/popular-posts",
             "/api/community/posts",
             "/api/community/posts/*",
             "/api/community/posts/*/comments"

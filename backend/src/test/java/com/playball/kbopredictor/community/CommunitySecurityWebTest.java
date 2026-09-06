@@ -6,6 +6,7 @@ import com.playball.kbopredictor.common.config.SecurityConfig;
 import com.playball.kbopredictor.community.controller.CommunityController;
 import com.playball.kbopredictor.community.dto.CommunityCommentResponse;
 import com.playball.kbopredictor.community.dto.CommunityPageResponse;
+import com.playball.kbopredictor.community.dto.CommunityPopularPostResponse;
 import com.playball.kbopredictor.community.dto.CommunityPostRequest;
 import com.playball.kbopredictor.community.dto.CommunityPostResponse;
 import com.playball.kbopredictor.community.dto.CommunityReactionResponse;
@@ -60,6 +61,17 @@ class CommunitySecurityWebTest {
 
     @Test
     void anonymousUserCanReadPostsAndComments() throws Exception {
+        when(communityService.getPopularPosts()).thenReturn(List.of(
+                new CommunityPopularPostResponse(
+                        POST_ID,
+                        "인기 게시글",
+                        "야구왕",
+                        LocalDateTime.of(2026, 9, 2, 12, 0),
+                        3,
+                        2,
+                        10
+                )
+        ));
         when(communityService.getPosts(0, 15)).thenReturn(
                 new CommunityPageResponse<>(
                         List.of(), 0, 15, 0, 0, true, true
@@ -68,6 +80,10 @@ class CommunitySecurityWebTest {
         when(communityService.getPost(POST_ID, null)).thenReturn(postResponse());
         when(communityService.getComments(POST_ID, null)).thenReturn(List.of());
 
+        mockMvc.perform(get("/api/community/popular-posts"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(POST_ID))
+                .andExpect(jsonPath("$[0].likeCount").value(3));
         mockMvc.perform(get("/api/community/posts"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isArray());

@@ -125,6 +125,16 @@ export type CommunityPostListItemApiResponse = {
   updatedAt: string
 }
 
+export type CommunityPopularPostApiResponse = {
+  id: number
+  title: string
+  authorNickname: string
+  createdAt: string
+  likeCount: number
+  commentCount: number
+  viewCount: number
+}
+
 export type CommunityPostApiResponse = CommunityPostListItemApiResponse & {
   content: string
   myReaction: CommunityReactionType
