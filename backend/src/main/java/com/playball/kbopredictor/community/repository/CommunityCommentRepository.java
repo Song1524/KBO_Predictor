@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 import jakarta.persistence.LockModeType;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -80,6 +81,19 @@ public interface CommunityCommentRepository
     List<CommentCount> countByPostIdsAndStatus(
             @Param("postIds") Collection<Long> postIds,
             @Param("status") CommunityContentStatus status
+    );
+
+    @Query("""
+            select comment
+            from CommunityComment comment
+            where comment.user.id = :userId
+              and comment.createdAt > :createdAfter
+            order by comment.createdAt desc, comment.id desc
+            """)
+    List<CommunityComment> findRecentByUserId(
+            @Param("userId") Long userId,
+            @Param("createdAfter") LocalDateTime createdAfter,
+            org.springframework.data.domain.Pageable pageable
     );
 
     interface CommentCount {

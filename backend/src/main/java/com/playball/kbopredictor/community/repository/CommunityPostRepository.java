@@ -12,6 +12,8 @@ import org.springframework.data.repository.query.Param;
 
 import jakarta.persistence.LockModeType;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface CommunityPostRepository
@@ -40,5 +42,18 @@ public interface CommunityPostRepository
     Optional<CommunityPost> findByIdAndStatusForUpdate(
             @Param("id") Long id,
             @Param("status") CommunityContentStatus status
+    );
+
+    @Query("""
+            select post
+            from CommunityPost post
+            where post.user.id = :userId
+              and post.createdAt > :createdAfter
+            order by post.createdAt desc, post.id desc
+            """)
+    List<CommunityPost> findRecentByUserId(
+            @Param("userId") Long userId,
+            @Param("createdAfter") LocalDateTime createdAfter,
+            Pageable pageable
     );
 }

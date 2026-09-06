@@ -40,6 +40,7 @@ public class CommunityService {
     private final CommunityCommentRepository commentRepository;
     private final UserRepository userRepository;
     private final CommunityReactionService reactionService;
+    private final CommunityWriteGuard writeGuard;
     private final Clock clock;
 
     public CommunityPageResponse<CommunityPostListItemResponse> getPosts(
@@ -111,12 +112,18 @@ public class CommunityService {
             Long authenticatedUserId,
             CommunityPostRequest request
     ) {
-        User author = user(authenticatedUserId);
+        LocalDateTime now = now();
+        User author = writeGuard.lockAndValidatePost(
+                authenticatedUserId,
+                request.title(),
+                request.content(),
+                now
+        );
         CommunityPost post = postRepository.save(CommunityPost.create(
                 author,
                 request.title(),
                 request.content(),
-                now()
+                now
         ));
         return CommunityPostResponse.from(
                 post,
@@ -208,8 +215,13 @@ public class CommunityService {
             Long postId,
             CommunityCommentRequest request
     ) {
+        LocalDateTime now = now();
+        User author = writeGuard.lockAndValidateComment(
+                authenticatedUserId,
+                request.content(),
+                now
+        );
         CommunityPost post = activePost(postId);
-        User author = user(authenticatedUserId);
         CommunityComment parent = replyParent(
                 post,
                 request.parentCommentId()
@@ -220,7 +232,7 @@ public class CommunityService {
                         author,
                         parent,
                         request.content(),
-                        now()
+                        now
                 )
         );
         return CommunityCommentResponse.from(comment);

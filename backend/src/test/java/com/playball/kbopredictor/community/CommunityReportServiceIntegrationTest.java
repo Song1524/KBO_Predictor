@@ -54,7 +54,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         "app.kbo-data.sync-scheduler.enabled=false",
         "app.kbo-data.pregame-scheduler.enabled=false",
         "app.odds.closing-scheduler.enabled=false",
-        "app.prediction.history-finalization-scheduler.enabled=false"
+        "app.prediction.history-finalization-scheduler.enabled=false",
+        "app.community.write-rate-limit.enabled=false"
 })
 @ActiveProfiles("test")
 class CommunityReportServiceIntegrationTest {

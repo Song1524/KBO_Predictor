@@ -10,6 +10,7 @@ import com.playball.kbopredictor.community.dto.CommunityPostRequest;
 import com.playball.kbopredictor.community.dto.CommunityPostResponse;
 import com.playball.kbopredictor.community.dto.CommunityReactionResponse;
 import com.playball.kbopredictor.community.entity.CommunityReactionType;
+import com.playball.kbopredictor.community.exception.CommunityRateLimitException;
 import com.playball.kbopredictor.community.service.CommunityReactionService;
 import com.playball.kbopredictor.community.service.CommunityService;
 import org.junit.jupiter.api.Test;
@@ -36,6 +37,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(CommunityController.class)
@@ -270,6 +272,28 @@ class CommunitySecurityWebTest {
                 eq(POST_ID),
                 any()
         );
+    }
+
+    @Test
+    void writeRateLimitReturns429BodyAndRetryAfterHeader() throws Exception {
+        when(communityService.createPost(
+                eq(USER_ID),
+                any(CommunityPostRequest.class)
+        )).thenThrow(new CommunityRateLimitException(
+                "너무 빠르게 작성하고 있습니다.",
+                17
+        ));
+
+        mockMvc.perform(post("/api/community/posts")
+                        .with(user(authenticatedUser("ROLE_USER")))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validPostJson()))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().string("Retry-After", "17"))
+                .andExpect(jsonPath("$.message")
+                        .value("너무 빠르게 작성하고 있습니다."))
+                .andExpect(jsonPath("$.retryAfterSeconds").value(17));
     }
 
     @Test
