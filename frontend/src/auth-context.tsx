@@ -1,7 +1,9 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -17,6 +19,10 @@ type LoginResult = {
   dailyLoginBonusPoints: number
 }
 
+type RefreshUserOptions = {
+  maxAgeMs?: number
+}
+
 type AuthContextValue = {
   user: UserApiResponse | null
   isLoading: boolean
@@ -24,7 +30,7 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<LoginResult>
   signup: (request: SignupRequest) => Promise<string | null>
   logout: () => Promise<void>
-  refreshUser: () => Promise<boolean>
+  refreshUser: (options?: RefreshUserOptions) => Promise<boolean>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -33,30 +39,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserApiResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isAuthenticating, setIsAuthenticating] = useState(false)
+  const lastSuccessfulRefreshAtRef = useRef(0)
+  const activeRefreshRef = useRef<Promise<boolean> | null>(null)
 
-  const refreshUser = async (): Promise<boolean> => {
-    try {
-      const response = await apiFetch('/api/auth/me', {
-        credentials: 'include',
-      })
+  const refreshUser = useCallback(async (
+    options: RefreshUserOptions = {},
+  ): Promise<boolean> => {
+    const maxAgeMs = Math.max(0, options.maxAgeMs ?? 0)
+    if (
+      maxAgeMs > 0
+      && Date.now() - lastSuccessfulRefreshAtRef.current <= maxAgeMs
+    ) {
+      return true
+    }
+    if (activeRefreshRef.current) return activeRefreshRef.current
 
-      if (response.status === 401) {
-        setUser(null)
+    const request = (async () => {
+      try {
+        const response = await apiFetch('/api/auth/me', {
+          credentials: 'include',
+        })
+
+        if (response.status === 401) {
+          lastSuccessfulRefreshAtRef.current = 0
+          setUser(null)
+          return false
+        }
+        if (!response.ok) {
+          throw new Error('사용자 정보를 불러오지 못했습니다.')
+        }
+
+        const data: UserApiResponse = await response.json()
+        lastSuccessfulRefreshAtRef.current = Date.now()
+        setUser(data)
+        return true
+      } catch (error) {
+        console.error(error)
         return false
       }
-      if (!response.ok) {
-        throw new Error('사용자 정보를 불러오지 못했습니다.')
-      }
+    })()
 
-      const data: UserApiResponse = await response.json()
-      setUser(data)
-      return true
-    } catch (error) {
-      console.error(error)
-      setUser(null)
-      return false
+    activeRefreshRef.current = request
+    try {
+      return await request
+    } finally {
+      if (activeRefreshRef.current === request) {
+        activeRefreshRef.current = null
+      }
     }
-  }
+  }, [])
 
   useEffect(() => {
     const restoreSession = async () => {
@@ -65,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     void restoreSession()
-  }, [])
+  }, [refreshUser])
 
   const login = async (
     email: string,
@@ -91,6 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const loginResponse = responseBody as LoginApiResponse
+      lastSuccessfulRefreshAtRef.current = Date.now()
       setUser(loginResponse)
       return {
         errorMessage: null,
@@ -119,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         credentials: 'include',
       })
     } finally {
+      lastSuccessfulRefreshAtRef.current = 0
       setUser(null)
       setIsAuthenticating(false)
     }
@@ -139,6 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return responseBody?.message ?? '회원가입에 실패했습니다.'
       }
 
+      lastSuccessfulRefreshAtRef.current = Date.now()
       setUser(responseBody as UserApiResponse)
       return null
     } catch (error) {

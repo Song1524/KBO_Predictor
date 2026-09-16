@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { apiFetch } from '@/lib/api-client'
 import type {
   PredictionOutcome,
+  PredictionSettlementStatus,
   UserPredictionApiResponse,
 } from '@/lib/api-types'
 import type {
@@ -16,6 +17,36 @@ import type {
 const MIN_PREDICTION_POINTS = 100
 const PREDICTION_POINT_UNIT = 100
 const QUICK_POINT_AMOUNTS = [100, 300, 500] as const
+
+const settlementStatusLabels: Record<
+  PredictionSettlementStatus,
+  {
+    label: string
+    description: string
+    variant: 'default' | 'secondary' | 'destructive' | 'outline'
+  }
+> = {
+  PENDING: {
+    label: '정산 대기',
+    description: '경기 결과 정산을 기다리고 있습니다.',
+    variant: 'outline',
+  },
+  WON: {
+    label: '적중',
+    description: '예측 적중 보상이 지급되었습니다.',
+    variant: 'default',
+  },
+  LOST: {
+    label: '실패',
+    description: '예측 결과가 실제 경기 결과와 달랐습니다.',
+    variant: 'destructive',
+  },
+  REFUNDED: {
+    label: '환불',
+    description: '취소 경기 참여 포인트가 환불되었습니다.',
+    variant: 'secondary',
+  },
+}
 
 export type PredictionGame = {
   id: number
@@ -30,6 +61,7 @@ type GamePredictionPanelProps = {
   game: PredictionGame
   existingPrediction: UserPredictionApiResponse | null
   isExistingPredictionLoading?: boolean
+  showSettlementStatus?: boolean
   onPredictionCreated: (prediction: UserPredictionApiResponse) => void
 }
 
@@ -117,6 +149,7 @@ export function GamePredictionPanel({
   game,
   existingPrediction,
   isExistingPredictionLoading = false,
+  showSettlementStatus = false,
   onPredictionCreated,
 }: GamePredictionPanelProps) {
   const { user, isLoading: isAuthLoading } = useAuth()
@@ -431,7 +464,14 @@ export function GamePredictionPanel({
         <div className="grid gap-2 rounded-xl border border-primary/30 bg-primary/5 p-4 text-sm">
           <div className="flex items-center justify-between gap-2">
             <strong>이미 예측했습니다</strong>
-            <Badge variant="outline">변경 불가</Badge>
+            <div className="flex items-center gap-1">
+              {showSettlementStatus && (
+                <Badge variant={settlementStatusLabels[confirmedPrediction.settlementStatus].variant}>
+                  {settlementStatusLabels[confirmedPrediction.settlementStatus].label}
+                </Badge>
+              )}
+              <Badge variant="outline">변경 불가</Badge>
+            </div>
           </div>
           <p>
             선택 <strong>{getOutcomeLabel(confirmedPrediction.selectedOutcome, game)}</strong>
@@ -441,6 +481,11 @@ export function GamePredictionPanel({
           {!game.userOdds?.bettingOpen && game.userOdds?.finalized && (
             <p className="text-xs text-muted-foreground">
               선택 결과 최종 배당 {formatOdds(getOutcomeOdds(game, confirmedPrediction.selectedOutcome)?.odds ?? null)}
+            </p>
+          )}
+          {showSettlementStatus && (
+            <p className="text-xs text-muted-foreground">
+              {settlementStatusLabels[confirmedPrediction.settlementStatus].description}
             </p>
           )}
         </div>

@@ -140,13 +140,6 @@ public class GameSettlementRecoveryService {
                 User lockedUser = userPointLockService.findByIdForUpdate(
                         prediction.getUser().getId()
                 );
-                if (lockedUser.getPoint() == null
-                        || lockedUser.getPoint() < original.getPointChange()) {
-                    throw conflict(
-                            "사용자 잔액이 부족하여 정산을 원복할 수 없습니다: userId="
-                                    + lockedUser.getId()
-                    );
-                }
                 pointService.reverseSettlement(
                         lockedUser,
                         prediction,

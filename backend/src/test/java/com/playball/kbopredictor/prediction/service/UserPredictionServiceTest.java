@@ -24,6 +24,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.time.*;
 import java.util.List;
 import java.util.Optional;
@@ -57,16 +58,20 @@ class UserPredictionServiceTest {
     @Mock
     private UserPointLockService userPointLockService;
 
+    private OddsCalculator oddsCalculator;
+
     private UserPredictionService service;
 
     @BeforeEach
     void setUp() {
         Clock clock = Clock.fixed(NOW.atZone(SEOUL).toInstant(), SEOUL);
+        oddsCalculator = new OddsCalculator(new BigDecimal("10.00"));
         service = new UserPredictionService(
                 userPredictionRepository,
                 userRepository,
                 gameRepository,
                 gameOddsService,
+                oddsCalculator,
                 pointService,
                 userPointLockService,
                 clock
@@ -120,7 +125,7 @@ class UserPredictionServiceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {-100, 0, 50, 150})
+    @ValueSource(ints = {-100, 0, 50, 150, 214_748_400})
     void blocksInvalidPointAmounts(int pointAmount) {
         assertThatThrownBy(() -> service.createPrediction(
                 1L,
@@ -173,6 +178,50 @@ class UserPredictionServiceTest {
 
         verifyNoInteractions(gameOddsService, pointService);
         assertThat(user.getPoint()).isEqualTo(200);
+    }
+
+    @Test
+    void blocksParticipationWhenBalanceIsNegative() {
+        Game game = futureGame();
+        User user = TestEntities.user(1L, -700);
+        stubAvailablePrediction(game, user);
+
+        assertThatThrownBy(() -> service.createPrediction(
+                user.getId(),
+                new UserPredictionRequest(
+                        game.getId(),
+                        PredictionOutcome.HOME_WIN,
+                        100
+                )
+        )).isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                assertThat(exception.getStatusCode())
+                        .isEqualTo(HttpStatus.BAD_REQUEST)
+        );
+
+        verifyNoInteractions(gameOddsService, pointService);
+        assertThat(user.getPoint()).isEqualTo(-700);
+    }
+
+    @Test
+    void blocksPredictionWhoseMaximumPayoutWouldOverflowCurrentBalance() {
+        Game game = futureGame();
+        User user = TestEntities.user(1L, Integer.MAX_VALUE);
+        stubAvailablePrediction(game, user);
+
+        assertThatThrownBy(() -> service.createPrediction(
+                user.getId(),
+                new UserPredictionRequest(
+                        game.getId(),
+                        PredictionOutcome.HOME_WIN,
+                        100
+                )
+        )).isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+            assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+            assertThat(exception.getReason()).contains("최대 배당 지급 후");
+        });
+
+        verifyNoInteractions(gameOddsService, pointService);
+        assertThat(user.getPoint()).isEqualTo(Integer.MAX_VALUE);
     }
 
     @ParameterizedTest

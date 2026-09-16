@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ArrowLeft,
   CalendarDays,
@@ -35,6 +35,31 @@ import type {
   TeamStatApiResponse,
 } from '@/lib/game-api-types'
 import { cn } from '@/lib/utils'
+
+const GAME_DETAIL_POLLING_INTERVAL_MS = 30_000
+
+function getKoreaDate(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+  const values = Object.fromEntries(
+    parts.map(({ type, value }) => [type, value]),
+  )
+
+  return `${values.year}-${values.month}-${values.day}`
+}
+
+function shouldPollGameDetail(
+  game: GameApiResponse,
+  prediction: UserPredictionApiResponse | null,
+) {
+  if (game.status !== 'FINISHED' && game.status !== 'CANCELLED') return true
+  if (prediction?.settlementStatus === 'PENDING') return true
+  return game.gameDate >= getKoreaDate()
+}
 
 function normalizeText(value: string | null, fallback: string) {
   const normalized = value?.trim()
@@ -522,6 +547,31 @@ async function fetchStartingPitchers(
   return data
 }
 
+async function fetchGameDetail(
+  gameId: number,
+  signal: AbortSignal,
+): Promise<GameApiResponse> {
+  const response = await apiFetch(`/api/games/${gameId}`, { signal })
+  if (response.status === 404) throw new Error('경기를 찾을 수 없습니다.')
+  if (!response.ok) throw new Error('경기 상세 정보를 불러오지 못했습니다.')
+
+  const data = await response.json() as GameApiResponse
+  if (data.id !== gameId) throw new Error('경기 정보를 확인할 수 없습니다.')
+  return data
+}
+
+async function fetchPredictionForGame(
+  gameId: number,
+  signal: AbortSignal,
+): Promise<UserPredictionApiResponse | null> {
+  const response = await apiFetch('/api/user-predictions/me', { signal })
+  if (response.status === 401) return null
+  if (!response.ok) throw new Error('기존 승부예측을 불러오지 못했습니다.')
+
+  const predictions = await response.json() as UserPredictionApiResponse[]
+  return predictions.find((prediction) => prediction.gameId === gameId) ?? null
+}
+
 export function GameDetailPage() {
   const { gameId: gameIdParam } = useParams()
   const { user, isLoading: isAuthLoading, refreshUser } = useAuth()
@@ -541,6 +591,9 @@ export function GameDetailPage() {
   const [error, setError] = useState('')
   const [statsError, setStatsError] = useState('')
   const [pitchersError, setPitchersError] = useState('')
+  const [refreshError, setRefreshError] = useState('')
+  const pollingRequestInFlightRef = useRef(false)
+  const pollingControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     if (!validGameId) {
@@ -558,21 +611,9 @@ export function GameDetailPage() {
         setAwayStat(null)
         setStartingPitchers(null)
         setPitchersError('')
+        setRefreshError('')
 
-        const response = await apiFetch(`/api/games/${gameId}`, {
-          signal: controller.signal,
-        })
-        if (response.status === 404) {
-          throw new Error('경기를 찾을 수 없습니다.')
-        }
-        if (!response.ok) {
-          throw new Error('경기 상세 정보를 불러오지 못했습니다.')
-        }
-
-        const data = await response.json() as GameApiResponse
-        if (data.id !== gameId) {
-          throw new Error('경기 정보를 확인할 수 없습니다.')
-        }
+        const data = await fetchGameDetail(gameId, controller.signal)
         if (controller.signal.aborted) return
 
         setGame(data)
@@ -634,22 +675,12 @@ export function GameDetailPage() {
     const loadPrediction = async () => {
       try {
         setIsLoadingPrediction(true)
-        const response = await apiFetch('/api/user-predictions/me', {
-          signal: controller.signal,
-        })
-        if (response.status === 401) {
-          setExistingPrediction(null)
-          return
-        }
-        if (!response.ok) {
-          throw new Error('기존 승부예측을 불러오지 못했습니다.')
-        }
-
-        const predictions = await response.json() as UserPredictionApiResponse[]
+        const prediction = await fetchPredictionForGame(
+          gameId,
+          controller.signal,
+        )
         if (!controller.signal.aborted) {
-          setExistingPrediction(
-            predictions.find((prediction) => prediction.gameId === gameId) ?? null,
-          )
+          setExistingPrediction(prediction)
         }
       } catch (predictionError) {
         if (controller.signal.aborted) return
@@ -663,6 +694,120 @@ export function GameDetailPage() {
     void loadPrediction()
     return () => controller.abort()
   }, [gameId, isAuthLoading, user?.id, validGameId])
+
+  useEffect(() => {
+    if (
+      isAuthLoading
+      || isLoading
+      || isLoadingPitchers
+      || isLoadingPrediction
+      || !validGameId
+      || !game
+      || !shouldPollGameDetail(game, existingPrediction)
+    ) {
+      return
+    }
+
+    let disposed = false
+    const poll = async () => {
+      if (
+        disposed
+        || document.visibilityState !== 'visible'
+        || pollingRequestInFlightRef.current
+        || !shouldPollGameDetail(game, existingPrediction)
+      ) {
+        return
+      }
+
+      const controller = new AbortController()
+      pollingRequestInFlightRef.current = true
+      pollingControllerRef.current = controller
+
+      const shouldRefreshPrediction = user != null && existingPrediction != null
+      const [gameResult, pitchersResult, predictionResult] =
+        await Promise.allSettled([
+          fetchGameDetail(gameId, controller.signal),
+          fetchStartingPitchers(gameId, controller.signal),
+          shouldRefreshPrediction
+            ? fetchPredictionForGame(gameId, controller.signal)
+            : Promise.resolve(null),
+        ])
+
+      try {
+        if (disposed || controller.signal.aborted) return
+
+        if (gameResult.status === 'fulfilled') {
+          setGame(gameResult.value)
+        } else {
+          console.error(gameResult.reason)
+        }
+
+        if (pitchersResult.status === 'fulfilled') {
+          setStartingPitchers(pitchersResult.value)
+          setPitchersError('')
+        } else {
+          console.error(pitchersResult.reason)
+        }
+
+        if (shouldRefreshPrediction) {
+          if (predictionResult.status === 'fulfilled') {
+            const refreshedPrediction = predictionResult.value
+            const predictionChanged =
+              refreshedPrediction?.id !== existingPrediction.id
+              || refreshedPrediction?.settlementStatus
+                !== existingPrediction.settlementStatus
+              || refreshedPrediction?.updatedAt !== existingPrediction.updatedAt
+            setExistingPrediction(refreshedPrediction)
+            if (predictionChanged) void refreshUser()
+          } else {
+            console.error(predictionResult.reason)
+          }
+        }
+
+        const refreshFailed = gameResult.status === 'rejected'
+          || pitchersResult.status === 'rejected'
+          || shouldRefreshPrediction && predictionResult.status === 'rejected'
+        setRefreshError(refreshFailed
+          ? '일부 최신 정보를 불러오지 못했습니다. 기존 정보를 표시하며 다음 갱신 때 다시 시도합니다.'
+          : '')
+      } finally {
+        if (pollingControllerRef.current === controller) {
+          pollingControllerRef.current = null
+        }
+        pollingRequestInFlightRef.current = false
+      }
+    }
+
+    const intervalId = window.setInterval(
+      () => void poll(),
+      GAME_DETAIL_POLLING_INTERVAL_MS,
+    )
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void poll()
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      disposed = true
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      pollingControllerRef.current?.abort()
+    }
+  }, [
+    existingPrediction?.id,
+    existingPrediction?.settlementStatus,
+    existingPrediction?.updatedAt,
+    game?.gameDate,
+    game?.status,
+    gameId,
+    isAuthLoading,
+    isLoading,
+    isLoadingPitchers,
+    isLoadingPrediction,
+    refreshUser,
+    user?.id,
+    validGameId,
+  ])
 
   const refreshGame = async () => {
     if (!validGameId) return
@@ -713,6 +858,15 @@ export function GameDetailPage() {
           <>
             <GameHeader game={game} />
 
+            {refreshError && (
+              <p
+                className="px-1 text-xs text-destructive"
+                role="status"
+              >
+                {refreshError}
+              </p>
+            )}
+
             <AiAnalysis
               game={game}
               homeName={normalizeText(game.homeTeamName, '정보 없음')}
@@ -739,6 +893,7 @@ export function GameDetailPage() {
                   game={toPredictionGame(game)}
                   existingPrediction={existingPrediction}
                   isExistingPredictionLoading={isLoadingPrediction}
+                  showSettlementStatus
                   onPredictionCreated={(prediction) => {
                     setExistingPrediction(prediction)
                     void refreshUser()

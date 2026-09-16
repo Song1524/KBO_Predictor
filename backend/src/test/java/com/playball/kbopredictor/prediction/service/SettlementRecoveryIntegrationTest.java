@@ -7,6 +7,7 @@ import com.playball.kbopredictor.game.repository.GameRepository;
 import com.playball.kbopredictor.point.entity.PointHistory;
 import com.playball.kbopredictor.point.entity.PointHistoryType;
 import com.playball.kbopredictor.point.repository.PointHistoryRepository;
+import com.playball.kbopredictor.point.service.PointService;
 import com.playball.kbopredictor.prediction.dto.GameResultCorrectionRequest;
 import com.playball.kbopredictor.prediction.dto.PredictionSettlementResponse;
 import com.playball.kbopredictor.prediction.dto.PredictionSettlementRollbackResponse;
@@ -97,6 +98,8 @@ class SettlementRecoveryIntegrationTest {
     private UserPredictionRepository userPredictionRepository;
     @Autowired
     private PointHistoryRepository pointHistoryRepository;
+    @Autowired
+    private PointService pointService;
     @Autowired
     private RankingQueryRepository rankingQueryRepository;
     @Autowired
@@ -199,6 +202,102 @@ class SettlementRecoveryIntegrationTest {
                 .getResultCorrectedByUserId()).isEqualTo(ADMIN_USER_ID);
         assertThat(gameSettlementRepository.countByGameId(fixture.gameId()))
                 .isEqualTo(2);
+    }
+
+    @Test
+    void rollbackCanCreateNegativeBalanceAndResettlementCanRestoreIt() {
+        RecoveryFixture fixture = createFixture(
+                GameStatus.FINISHED, GameResult.HOME_WIN, 5, 2,
+                PredictionOutcome.HOME_WIN, PredictionOutcome.AWAY_WIN
+        );
+        changeFinalHomeOdds(fixture.gameId(), "10.00");
+
+        PredictionSettlementResponse first = predictionSettlementService
+                .settleGame(fixture.gameId(), ADMIN_USER_ID);
+        assertThat(first.totalPaidPoints()).isEqualTo(1_000);
+        assertThat(currentPoint(fixture.firstUserId())).isEqualTo(1_900);
+
+        spendPoints(fixture.firstUserId(), fixture.gameId(), 1_600);
+        assertThat(currentPoint(fixture.firstUserId())).isEqualTo(300);
+
+        PredictionSettlementRollbackResponse rollback = recoveryService.rollback(
+                fixture.gameId(), 1, ADMIN_USER_ID, "지급 후 잔액 부족 rollback"
+        );
+        PredictionSettlementRollbackResponse duplicate = recoveryService.rollback(
+                fixture.gameId(), 1, ADMIN_USER_ID, "중복 rollback"
+        );
+
+        assertThat(rollback.alreadyRolledBack()).isFalse();
+        assertThat(rollback.reversedPointTotal()).isEqualTo(1_000);
+        assertThat(duplicate.alreadyRolledBack()).isTrue();
+        assertThat(duplicate.reversedPointHistoryCount()).isZero();
+        assertThat(currentPoint(fixture.firstUserId())).isEqualTo(-700);
+        assertHistories(
+                fixture.firstUserId(),
+                tuple(PointHistoryType.PREDICTION_REWARD, 1_000, 1_900),
+                tuple(PointHistoryType.PREDICTION_BET, -1_600, 300),
+                tuple(PointHistoryType.PREDICTION_REWARD_ROLLBACK, -1_000, -700)
+        );
+        assertRollbackLinksToOriginalReward(fixture.firstUserId());
+
+        recoveryService.correctResult(
+                fixture.gameId(),
+                ADMIN_USER_ID,
+                correctionRequest(1, GameStatus.FINISHED, 4, 1)
+        );
+        PredictionSettlementResponse second = predictionSettlementService
+                .settleGame(fixture.gameId(), ADMIN_USER_ID, 1);
+
+        assertThat(second.settlementRevision()).isEqualTo(2);
+        assertThat(second.totalPaidPoints()).isEqualTo(1_000);
+        assertThat(currentPoint(fixture.firstUserId())).isEqualTo(300);
+        assertHistories(
+                fixture.firstUserId(),
+                tuple(PointHistoryType.PREDICTION_REWARD, 1_000, 1_900),
+                tuple(PointHistoryType.PREDICTION_BET, -1_600, 300),
+                tuple(PointHistoryType.PREDICTION_REWARD_ROLLBACK, -1_000, -700),
+                tuple(PointHistoryType.PREDICTION_REWARD, 1_000, 300)
+        );
+        assertSettlementHistoryRevisions(fixture.firstUserId());
+    }
+
+    @Test
+    void rollbackFailureDoesNotLeaveEarlierUsersPartiallyReversed() {
+        RecoveryFixture fixture = createFixture(
+                GameStatus.FINISHED, GameResult.HOME_WIN, 5, 2,
+                PredictionOutcome.HOME_WIN, PredictionOutcome.HOME_WIN
+        );
+        predictionSettlementService.settleGame(fixture.gameId(), ADMIN_USER_ID);
+        transactionTemplate.executeWithoutResult(status -> {
+            User secondUser = userRepository.findById(fixture.secondUserId())
+                    .orElseThrow();
+            ReflectionTestUtils.setField(
+                    secondUser,
+                    "point",
+                    Integer.MIN_VALUE + 100
+            );
+        });
+
+        assertThatThrownBy(() -> recoveryService.rollback(
+                fixture.gameId(), 1, ADMIN_USER_ID, "산술 오류 rollback"
+        )).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("포인트 잔액이 허용 범위를 초과");
+
+        assertThat(currentPoint(fixture.firstUserId())).isEqualTo(1_100);
+        assertThat(currentPoint(fixture.secondUserId()))
+                .isEqualTo(Integer.MIN_VALUE + 100);
+        assertThat(gameSettlementRepository
+                .findByGameIdAndRevision(fixture.gameId(), 1)
+                .orElseThrow()
+                .getState()).isEqualTo(GameSettlementState.SETTLED);
+        assertThat(userPredictionRepository.findByGameId(fixture.gameId()))
+                .allSatisfy(prediction -> {
+                    assertThat(prediction.getSettled()).isTrue();
+                    assertThat(prediction.getSettlement()).isNotNull();
+                });
+        assertThat(pointHistoryRepository.findAll())
+                .noneMatch(history -> history.getType()
+                        == PointHistoryType.PREDICTION_REWARD_ROLLBACK);
     }
 
     @Test
@@ -772,6 +871,71 @@ class SettlementRecoveryIntegrationTest {
                     new BigDecimal(oddsValue)
             );
         });
+    }
+
+    private void spendPoints(Long userId, Long sourceGameId, int pointAmount) {
+        transactionTemplate.executeWithoutResult(status -> {
+            User user = userRepository.findById(userId).orElseThrow();
+            Game sourceGame = gameRepository.findById(sourceGameId).orElseThrow();
+            Game spendingGame = createGame(
+                    sourceGame.getHomeTeam(),
+                    sourceGame.getAwayTeam(),
+                    GameStatus.SCHEDULED,
+                    null,
+                    null,
+                    null
+            );
+            UserPrediction spendingPrediction = userPredictionRepository
+                    .saveAndFlush(UserPrediction.create(
+                            user,
+                            spendingGame,
+                            PredictionOutcome.DRAW,
+                            pointAmount
+                    ));
+            pointService.useForPrediction(user, spendingPrediction);
+        });
+    }
+
+    private void assertRollbackLinksToOriginalReward(Long userId) {
+        transactionTemplate.executeWithoutResult(status -> {
+            List<PointHistory> histories = pointHistoryRepository
+                    .findByUserIdOrderByCreatedAtDescIdDesc(userId);
+            PointHistory original = histories.stream()
+                    .filter(history -> history.getType()
+                            == PointHistoryType.PREDICTION_REWARD)
+                    .findFirst()
+                    .orElseThrow();
+            PointHistory rollback = histories.stream()
+                    .filter(history -> history.getType()
+                            == PointHistoryType.PREDICTION_REWARD_ROLLBACK)
+                    .findFirst()
+                    .orElseThrow();
+
+            assertThat(rollback.getReversalOf().getId())
+                    .isEqualTo(original.getId());
+            assertThat(original.getSettlementRevision()).isEqualTo(1);
+            assertThat(rollback.getSettlementRevision()).isEqualTo(1);
+        });
+    }
+
+    private void assertSettlementHistoryRevisions(Long userId) {
+        List<PointHistory> histories = pointHistoryRepository
+                .findByUserIdOrderByCreatedAtDescIdDesc(userId)
+                .stream()
+                .sorted(Comparator.comparing(PointHistory::getId))
+                .filter(history -> history.getSettlement() != null)
+                .toList();
+
+        assertThat(histories)
+                .extracting(
+                        PointHistory::getType,
+                        PointHistory::getSettlementRevision
+                )
+                .containsExactly(
+                        tuple(PointHistoryType.PREDICTION_REWARD, 1),
+                        tuple(PointHistoryType.PREDICTION_REWARD_ROLLBACK, 1),
+                        tuple(PointHistoryType.PREDICTION_REWARD, 2)
+                );
     }
 
     private void createLegacySettlement(Long gameId) {

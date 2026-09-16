@@ -90,7 +90,8 @@ public class PointService {
                 null,
                 points,
                 PointHistoryType.SIGNUP_BONUS,
-                "회원가입 축하 포인트"
+                "회원가입 축하 포인트",
+                false
         );
     }
 
@@ -158,7 +159,8 @@ public class PointService {
                 originalHistory,
                 Math.negateExact(originalHistory.getPointChange()),
                 reversalType,
-                originalHistory.getDescription() + " 정산 원복"
+                originalHistory.getDescription() + " 정산 원복",
+                true
         );
     }
 
@@ -192,7 +194,8 @@ public class PointService {
                 null,
                 pointChange,
                 type,
-                description
+                description,
+                false
         );
     }
 
@@ -204,7 +207,8 @@ public class PointService {
             PointHistory reversalOf,
             int pointChange,
             PointHistoryType type,
-            String description
+            String description,
+            boolean allowNegativeBalance
     ) {
         if (user.getPoint() == null) {
             throw new IllegalStateException("사용자 포인트 잔액이 없습니다.");
@@ -220,7 +224,7 @@ public class PointService {
             );
         }
 
-        if (balanceAfter < 0) {
+        if (!allowNegativeBalance && pointChange < 0 && balanceAfter < 0) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "보유 포인트가 부족합니다."
@@ -235,7 +239,7 @@ public class PointService {
                 settlement,
                 reversalOf,
                 pointChange,
-                user.getPoint(),
+                balanceAfter,
                 type,
                 description,
                 LocalDateTime.now(clock)

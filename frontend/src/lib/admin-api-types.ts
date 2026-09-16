@@ -38,6 +38,95 @@ export type AdminGameResponse = {
   } | null
 }
 
+export type GameSettlementState = 'SETTLED' | 'ROLLED_BACK'
+
+export type GameSettlementSource = 'AUTOMATIC' | 'ADMIN' | 'LEGACY'
+
+export type GameSettlementStatusResponse = {
+  gameId: number
+  currentGameStatus: GameStatus
+  currentGameResult: PredictionOutcome | null
+  currentHomeScore: number | null
+  currentAwayScore: number | null
+  latestRevision: number | null
+  settlementState: GameSettlementState | null
+  settlementSource: GameSettlementSource | null
+  settledGameStatus: GameStatus | null
+  settledGameResult: PredictionOutcome | null
+  settledHomeScore: number | null
+  settledAwayScore: number | null
+  predictionCount: number
+  settledPredictionCount: number
+  pendingPredictionCount: number
+  settledByUserId: number | null
+  settledAt: string | null
+  rolledBackByUserId: number | null
+  rolledBackAt: string | null
+  rollbackReason: string | null
+  resultCorrectedByUserId: number | null
+  resultCorrectedAt: string | null
+  resultCorrectionReason: string | null
+  correctedGameStatus: GameStatus | null
+  correctedGameResult: PredictionOutcome | null
+  correctedHomeScore: number | null
+  correctedAwayScore: number | null
+  correctionReviewRequired: boolean
+  recoveryPending: boolean
+}
+
+export type PredictionSettlementResponse = {
+  gameId: number
+  settlementRevision: number | null
+  result: PredictionOutcome | null
+  cancelled: boolean
+  winnerTeamId: number | null
+  winnerTeamName: string | null
+  totalCount: number
+  correctCount: number
+  incorrectCount: number
+  refundedCount: number
+  totalPaidPoints: number
+}
+
+export type SettlementRollbackRequest = {
+  settlementRevision: number
+  reason: string
+}
+
+export type PredictionSettlementRollbackResponse = {
+  gameId: number
+  settlementRevision: number
+  alreadyRolledBack: boolean
+  restoredPredictionCount: number
+  reversedPointHistoryCount: number
+  reversedPointTotal: number
+  rolledBackByUserId: number | null
+  rolledBackAt: string | null
+}
+
+export type GameResultCorrectionRequest = {
+  settlementRevision: number
+  status: GameStatus
+  homeScore: number | null
+  awayScore: number | null
+  cancelReason: string | null
+  reason: string
+}
+
+export type GameResultCorrectionResponse = {
+  gameId: number
+  settlementRevision: number
+  status: GameStatus
+  result: PredictionOutcome | null
+  homeScore: number | null
+  awayScore: number | null
+  winnerTeamId: number | null
+  winnerTeamName: string | null
+  correctedByUserId: number
+  reason: string
+  correctedAt: string
+}
+
 export type GameSyncResponse = {
   targetDate: string
   sourceRowCount: number

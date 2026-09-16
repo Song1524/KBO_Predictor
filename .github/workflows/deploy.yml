@@ -86,7 +86,8 @@ jobs:
 
           IMAGE_TAG=kbo-predictor-frontend-ci
 
-          DB_PASSWORD=ci-placeholder \
+          APP_FRONTEND_ORIGIN=https://playball.ai.kr \
+            DB_PASSWORD=ci-placeholder \
             MYSQL_ROOT_PASSWORD=ci-placeholder \
             docker compose config --quiet
 
@@ -225,7 +226,9 @@ jobs:
 
           echo "=== Wait for backend ==="
           for i in $(seq 1 36); do
-            if curl -fsS http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+            if docker compose exec -T backend \
+              wget -q -O - http://127.0.0.1:8080/actuator/health \
+              | grep -q '"status":"UP"'; then
               echo "Backend health check passed."
               break
             fi

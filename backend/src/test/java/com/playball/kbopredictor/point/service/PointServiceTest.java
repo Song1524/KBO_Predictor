@@ -24,8 +24,11 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -51,7 +54,7 @@ class PointServiceTest {
                 userRepository,
                 clock
         );
-        when(pointHistoryRepository.save(any(PointHistory.class)))
+        lenient().when(pointHistoryRepository.save(any(PointHistory.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
@@ -93,6 +96,86 @@ class PointServiceTest {
         assertThat(history.getPointChange()).isEqualTo(230);
         assertThat(history.getBalanceAfter()).isEqualTo(user.getPoint());
         assertThat(history.getDescription()).isEqualTo("홈팀 승 예측 적중");
+    }
+
+    @Test
+    void settlementRollbackCanCreateNegativeBalanceAndRecordsActualBalance() {
+        User user = TestEntities.user(1L, 300);
+        UserPrediction prediction = prediction(
+                user,
+                PredictionOutcome.HOME_WIN,
+                100
+        );
+        PointHistory original = PointHistory.create(
+                user,
+                prediction.getGame(),
+                prediction,
+                1_000,
+                1_900,
+                PointHistoryType.PREDICTION_REWARD,
+                "홈팀 승 예측 적중",
+                NOW.minusHours(1)
+        );
+
+        service.reverseSettlement(user, prediction, original);
+
+        PointHistory reversal = savedHistory();
+        assertThat(user.getPoint()).isEqualTo(-700);
+        assertThat(reversal.getType())
+                .isEqualTo(PointHistoryType.PREDICTION_REWARD_ROLLBACK);
+        assertThat(reversal.getPointChange()).isEqualTo(-1_000);
+        assertThat(reversal.getBalanceAfter()).isEqualTo(-700);
+        assertThat(reversal.getReversalOf()).isSameAs(original);
+    }
+
+    @Test
+    void regularPredictionDebitCannotCreateNegativeBalance() {
+        User user = TestEntities.user(1L, 300);
+        UserPrediction prediction = prediction(
+                user,
+                PredictionOutcome.HOME_WIN,
+                400
+        );
+
+        assertThatThrownBy(() -> service.useForPrediction(user, prediction))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .hasMessageContaining("보유 포인트가 부족합니다");
+
+        assertThat(user.getPoint()).isEqualTo(300);
+        verifyNoInteractions(pointHistoryRepository);
+    }
+
+    @Test
+    void predictionRewardIncreasesNegativeBalance() {
+        User user = TestEntities.user(1L, -700);
+        UserPrediction prediction = prediction(
+                user,
+                PredictionOutcome.HOME_WIN,
+                100
+        );
+
+        service.rewardPrediction(user, prediction, 1_000);
+
+        PointHistory history = savedHistory();
+        assertThat(user.getPoint()).isEqualTo(300);
+        assertThat(history.getPointChange()).isEqualTo(1_000);
+        assertThat(history.getBalanceAfter()).isEqualTo(300);
+    }
+
+    @Test
+    void dailyLoginBonusIncreasesBalanceEvenWhenItRemainsNegative() {
+        User user = TestEntities.user(1L, -700);
+
+        service.grantDailyLoginBonus(
+                user,
+                50,
+                LocalDate.of(2026, 8, 10)
+        );
+
+        PointHistory history = savedHistory();
+        assertThat(user.getPoint()).isEqualTo(-650);
+        assertThat(history.getPointChange()).isEqualTo(50);
+        assertThat(history.getBalanceAfter()).isEqualTo(-650);
     }
 
     @Test

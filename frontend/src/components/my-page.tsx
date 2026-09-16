@@ -25,12 +25,20 @@ import {
 import { Separator } from '@/components/ui/separator'
 import type {
   PointHistoryApiResponse,
+  PointHistoryType,
   PredictionOutcome,
   PredictionSettlementStatus,
   UserPredictionApiResponse,
 } from '@/lib/api-types'
 import { apiFetch } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
+
+const AUTH_REFRESH_DEDUP_WINDOW_MS = 1_000
+
+const pointHistoryTypeLabels: Partial<Record<PointHistoryType, string>> = {
+  PREDICTION_REWARD_ROLLBACK: '정산 보상 회수',
+  GAME_CANCEL_REFUND_ROLLBACK: '경기 취소 환불 회수',
+}
 
 const settlementLabels: Record<
   PredictionSettlementStatus,
@@ -100,6 +108,10 @@ function formatPointChange(pointChange: number) {
   return `${sign}${pointChange.toLocaleString()}P`
 }
 
+function pointHistoryDescription(history: PointHistoryApiResponse) {
+  return pointHistoryTypeLabels[history.type] ?? history.description
+}
+
 export function MyPage() {
   const { user, isLoading: isAuthLoading, refreshUser } = useAuth()
   const [predictions, setPredictions] = useState<UserPredictionApiResponse[]>([])
@@ -119,7 +131,8 @@ export function MyPage() {
       try {
         setIsLoadingData(true)
         setErrorMessage('')
-        const [predictionResponse, pointHistoryResponse] = await Promise.all([
+        const [userRefreshed, predictionResponse, pointHistoryResponse] = await Promise.all([
+          refreshUser({ maxAgeMs: AUTH_REFRESH_DEDUP_WINDOW_MS }),
           apiFetch('/api/user-predictions/me'),
           apiFetch('/api/points/me/history'),
         ])
@@ -128,7 +141,11 @@ export function MyPage() {
           predictionResponse.status === 401 ||
           pointHistoryResponse.status === 401
         ) {
-          await refreshUser()
+          if (userRefreshed) {
+            await refreshUser()
+          } else if (!ignore) {
+            setErrorMessage('로그인 상태를 최신 정보로 확인하지 못했습니다.')
+          }
           return
         }
         if (!predictionResponse.ok || !pointHistoryResponse.ok) {
@@ -143,6 +160,9 @@ export function MyPage() {
         if (!ignore) {
           setPredictions(predictionData)
           setPointHistories(pointHistoryData)
+          if (!userRefreshed) {
+            setErrorMessage('현재 포인트를 최신 상태로 확인하지 못했습니다. 잠시 후 다시 접속해 주세요.')
+          }
         }
       } catch (error) {
         console.error(error)
@@ -162,7 +182,7 @@ export function MyPage() {
     return () => {
       ignore = true
     }
-  }, [isAuthLoading, user?.id])
+  }, [isAuthLoading, refreshUser, user?.id])
 
   const statistics = useMemo(() => {
     const won = predictions.filter(
@@ -191,7 +211,9 @@ export function MyPage() {
       if (
         history.userPredictionId == null ||
         (history.type !== 'PREDICTION_REWARD' &&
-          history.type !== 'GAME_CANCEL_REFUND')
+          history.type !== 'PREDICTION_REWARD_ROLLBACK' &&
+          history.type !== 'GAME_CANCEL_REFUND' &&
+          history.type !== 'GAME_CANCEL_REFUND_ROLLBACK')
       ) {
         return
       }
@@ -406,7 +428,7 @@ export function MyPage() {
                   <div key={history.id}>
                     <article className="flex items-center justify-between gap-4 py-4">
                       <div className="min-w-0">
-                        <h3 className="truncate font-semibold">{history.description}</h3>
+                        <h3 className="truncate font-semibold">{pointHistoryDescription(history)}</h3>
                         <p className="mt-1 text-xs text-muted-foreground">
                           {formatDateTime(history.createdAt)} · 처리 후 {history.balanceAfter.toLocaleString()}P
                         </p>

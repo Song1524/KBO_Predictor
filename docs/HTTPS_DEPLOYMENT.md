@@ -15,12 +15,16 @@ Keep the real `.env` only on the EC2 instance at
 
 ```dotenv
 APP_FRONTEND_ORIGIN=https://playball.ai.kr
-SESSION_COOKIE_SECURE=true
 FRONTEND_PORT=80
 HTTPS_PORT=443
 LETSENCRYPT_PATH=/etc/letsencrypt
 CERTBOT_WEBROOT_PATH=/home/ubuntu/KBO_Predictor/certbot/www
 ```
+
+The production Spring profile always marks the session cookie `Secure`; it
+cannot be disabled through `.env`. The production Compose file also requires an
+explicit `APP_FRONTEND_ORIGIN` and does not publish backend port 8080 on the EC2
+host. Nginx continues to reach `backend:8080` over the internal Compose network.
 
 Do not commit `.env`, certificates, private keys, or AWS credentials. The
 production model remains `baseline-v1`; HTTPS deployment does not change model
@@ -110,7 +114,8 @@ GitHub Actions continues to use OIDC and SSM Run Command. No new GitHub
 Variable or Secret is required. Frontend CI validates the Compose file, builds
 the image, and runs `nginx -t` against the certificate-absent bootstrap
 configuration. After the real certificate is issued, the reload helper runs
-`nginx -t` against the HTTPS configuration before reloading it. Deployment
-health checks use the local HTTP `/healthz` exception, so first-certificate
-issuance and public certificate trust do not make deployments brittle. SSH
-deployment and static AWS credentials are not used.
+`nginx -t` against the HTTPS configuration before reloading it. The backend
+deployment health check runs inside its container, while the frontend check
+uses the local HTTP `/healthz` exception. First-certificate issuance and public
+certificate trust therefore do not make deployments brittle. SSH deployment
+and static AWS credentials are not used.

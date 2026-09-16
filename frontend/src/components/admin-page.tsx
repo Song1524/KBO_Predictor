@@ -19,6 +19,7 @@ import {
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth-context'
 import { AppHeader } from '@/components/app-header'
+import { AdminSettlementManagement } from '@/components/admin-settlement-management'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import {
@@ -692,6 +693,14 @@ export function AdminPage() {
             )}
           </CardContent>
         </Card>
+
+        <AdminSettlementManagement
+          games={games}
+          selectedDate={selectedDate}
+          disabled={busyAction !== null || isLoading}
+          onBusyChange={(busy) => setBusyAction(busy ? 'settlement-management' : null)}
+          onRefreshGames={loadGames}
+        />
 
         {comparison && <Card><CardHeader><CardTitle>경기별 모델 비교 · #{comparison.gameId}</CardTitle><CardDescription>{comparison.awayTeamName} vs {comparison.homeTeamName} · 실제 결과 {comparison.actualResult ?? '미확정'} · 동일 Feature {comparison.sameFeatureSnapshot ? '확인' : '불일치/없음'}</CardDescription></CardHeader><CardContent className="grid gap-4 md:grid-cols-2">{([['baseline-v1', comparison.baseline], ['logistic-v1', comparison.logistic]] as const).map(([label, prediction]) => <div key={label} className="rounded-xl border p-4"><p className="font-mono text-sm font-black">{label}</p>{prediction ? <><div className="mt-3 grid grid-cols-3 gap-2 text-center"><div><p className="font-mono text-xl font-bold">{prediction.homeWinProbability}%</p><p className="text-xs text-muted-foreground">홈 승</p></div><div><p className="font-mono text-xl font-bold">{prediction.drawProbability}%</p><p className="text-xs text-muted-foreground">무승부</p></div><div><p className="font-mono text-xl font-bold">{prediction.awayWinProbability}%</p><p className="text-xs text-muted-foreground">원정 승</p></div></div><Separator className="my-3" /><p className="font-mono text-[10px] text-muted-foreground">snapshot #{prediction.featureSnapshotId ?? '-'} · feature {formatDateTime(prediction.featureAsOf)} · generated {formatDateTime(prediction.generatedAt)}</p></> : <p className="mt-4 text-sm text-muted-foreground">저장된 예측이 없습니다.</p>}</div>)}</CardContent></Card>}
 

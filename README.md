@@ -36,7 +36,6 @@ Spring Boot 4 / Java 21 백엔드와 React / Vite 프론트엔드로 구성된 K
 | `TEST_DB_PASSWORD` | 테스트 DB 비밀번호 |
 | `APP_FRONTEND_ORIGIN` | credential CORS를 허용할 정확한 프론트 Origin |
 | `SESSION_TIMEOUT` | 세션 만료 시간, prod 기본 2시간 |
-| `SESSION_COOKIE_SECURE` | prod 기본 true. localhost HTTP compose 검증에서만 false |
 | `SERVER_PORT` | 백엔드 포트, 기본 8080 |
 
 Docker Compose 변수는 루트의 `.env.example`을 참고합니다. `.env`는 Git에서 제외되며 실제 비밀번호를 저장소에 커밋하지 않습니다.
@@ -70,7 +69,7 @@ npm run dev
 ```powershell
 Copy-Item .env.example .env
 # .env의 비어 있는 비밀번호 값을 안전한 값으로 설정
-docker compose up --build
+docker compose -f compose.yaml -f compose.local.yaml up --build
 ```
 
 - Frontend: `http://localhost:3000`
@@ -79,10 +78,10 @@ docker compose up --build
 
 MySQL은 호스트에 직접 노출하지 않습니다. Backend는 MySQL healthcheck가 성공한 뒤 시작되고, Frontend는 Backend healthcheck가 성공한 뒤 시작됩니다.
 
-`.env.example`의 `SESSION_COOKIE_SECURE=false`는 localhost HTTP 검증 전용입니다. 인터넷 HTTPS 배포에서는 `APP_FRONTEND_ORIGIN`을 실제 HTTPS Origin으로 바꾸고 `SESSION_COOKIE_SECURE=true`를 반드시 설정합니다.
+`compose.local.yaml`은 로컬 HTTP 개발을 위해 Backend에 `local` profile을 적용하고 호스트의 8080 포트를 공개합니다. 운영에서는 이 override를 사용하지 않으며, 기본 `compose.yaml`이 `APP_FRONTEND_ORIGIN`을 필수로 요구하고 prod session cookie를 항상 Secure로 설정합니다.
 
 ```powershell
-docker compose down
+docker compose -f compose.yaml -f compose.local.yaml down
 ```
 
 DB 데이터는 `mysql-data` named volume에 유지됩니다. 완전한 빈 DB 재검증이 필요한 경우에만 별도 프로젝트 이름 또는 새 volume을 사용하십시오. 기존 개발 DB나 운영 volume을 삭제하지 마십시오.

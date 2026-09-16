@@ -168,7 +168,7 @@ public class PredictionSettlementService {
                         prediction
                 );
                 refundedCount++;
-                totalPaidPoints += refundPoint;
+                totalPaidPoints = Math.addExact(totalPaidPoints, refundPoint);
             } else if (prediction.getSelectedOutcome().matches(game.getResult())) {
                 int payout = oddsCalculator.calculatePayout(
                         prediction.getPointAmount(),
@@ -182,7 +182,7 @@ public class PredictionSettlementService {
                         payout
                 );
                 correctCount++;
-                totalPaidPoints += payout;
+                totalPaidPoints = Math.addExact(totalPaidPoints, payout);
             } else {
                 prediction.settleLost(settledAt, settlement);
                 incorrectCount++;

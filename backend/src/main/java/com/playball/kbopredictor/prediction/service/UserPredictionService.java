@@ -34,6 +34,7 @@ public class UserPredictionService {
     private final UserRepository userRepository;
     private final GameRepository gameRepository;
     private final GameOddsService gameOddsService;
+    private final OddsCalculator oddsCalculator;
     private final PointService pointService;
     private final UserPointLockService userPointLockService;
     private final Clock clock;
@@ -102,6 +103,13 @@ public class UserPredictionService {
                     "사용 포인트는 100P 단위여야 합니다."
             );
         }
+        int maxPointAmount = oddsCalculator.maxSafePointAmount(POINT_UNIT);
+        if (pointAmount > maxPointAmount) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "사용 포인트는 최대 " + maxPointAmount + "P입니다."
+            );
+        }
     }
 
     private void validatePointBalance(User user, int pointAmount) {
@@ -109,6 +117,19 @@ public class UserPredictionService {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "보유 포인트가 부족합니다."
+            );
+        }
+        int balanceAfterBet = user.getPoint() - pointAmount;
+        try {
+            Math.addExact(
+                    balanceAfterBet,
+                    oddsCalculator.calculateMaximumPayout(pointAmount)
+            );
+        } catch (ArithmeticException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "최대 배당 지급 후 포인트 잔액이 허용 범위를 초과합니다.",
+                    exception
             );
         }
     }

@@ -34,15 +34,15 @@ services:
       DB_URL: "jdbc:mysql://db:3306/${MYSQL_DATABASE:-kbo_predictor}?connectionTimeZone=Asia/Seoul&characterEncoding=UTF-8"
       DB_USERNAME: "${DB_USERNAME:-kbo_app}"
       DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is required}"
-      APP_FRONTEND_ORIGIN: "${APP_FRONTEND_ORIGIN:-http://localhost:3000}"
+      APP_FRONTEND_ORIGIN: "${APP_FRONTEND_ORIGIN:?APP_FRONTEND_ORIGIN is required}"
       SESSION_TIMEOUT: "${SESSION_TIMEOUT:-2h}"
-      SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-false}"
+      SERVER_SERVLET_SESSION_COOKIE_SECURE: "true"
       TZ: Asia/Seoul
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "${BACKEND_PORT:-8080}:8080"
+    expose:
+      - "8080"
     healthcheck:
       test:
         - CMD

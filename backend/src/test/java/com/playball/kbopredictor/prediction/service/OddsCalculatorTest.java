@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class OddsCalculatorTest {
 
@@ -42,5 +43,33 @@ class OddsCalculatorTest {
     void calculatesPayoutFromFinalOdds() {
         assertThat(calculator.calculatePayout(100, new BigDecimal("6.50")))
                 .isEqualTo(650);
+    }
+
+    @Test
+    void derivesSafePredictionLimitFromMaximumOddsAndPointUnit() {
+        assertThat(calculator.maxSafePointAmount(100))
+                .isEqualTo(214_748_300);
+        assertThat(calculator.calculateMaximumPayout(214_748_300))
+                .isEqualTo(2_147_483_000);
+    }
+
+    @Test
+    void rejectsPayoutThatExceedsIntegerRange() {
+        assertThatThrownBy(() -> calculator.calculatePayout(
+                214_748_400,
+                new BigDecimal("10.00")
+        ))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("지급 포인트가 허용 범위를 초과");
+    }
+
+    @Test
+    void rejectsFinalOddsAboveConfiguredMaximum() {
+        assertThatThrownBy(() -> calculator.calculatePayout(
+                100,
+                new BigDecimal("10.01")
+        ))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("최종 배당이 허용 범위");
     }
 }
