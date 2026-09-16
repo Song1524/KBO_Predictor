@@ -20,8 +20,8 @@ public class SystemPrediction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "game_id")
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "game_id", nullable = false)
     private Game game;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -32,13 +32,13 @@ public class SystemPrediction {
     @Column(name = "predicted_outcome", nullable = false, length = 20)
     private PredictionOutcome predictedOutcome;
 
-    @Column(name = "home_win_probability", precision = 5, scale = 2)
+    @Column(name = "home_win_probability", nullable = false, precision = 5, scale = 2)
     private BigDecimal homeWinProbability;
 
-    @Column(name = "draw_probability", precision = 5, scale = 2)
+    @Column(name = "draw_probability", nullable = false, precision = 5, scale = 2)
     private BigDecimal drawProbability;
 
-    @Column(name = "away_win_probability", precision = 5, scale = 2)
+    @Column(name = "away_win_probability", nullable = false, precision = 5, scale = 2)
     private BigDecimal awayWinProbability;
 
     @Column(name = "model_version", nullable = false, length = 50)
@@ -69,7 +69,7 @@ public class SystemPrediction {
     @Column(columnDefinition = "TEXT")
     private String reason;
 
-    @Column(name = "created_at")
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "generated_at", nullable = false)

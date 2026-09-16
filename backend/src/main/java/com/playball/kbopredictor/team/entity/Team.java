@@ -17,13 +17,13 @@ public class Team {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "kbo_team_code", length = 10, unique = true)
+    @Column(name = "kbo_team_code", nullable = false, length = 10, unique = true)
     private String kboTeamCode;
 
-    @Column(length = 100)
+    @Column(nullable = false, length = 100)
     private String name;
 
-    @Column(name = "short_name", length = 50)
+    @Column(name = "short_name", nullable = false, length = 50)
     private String shortName;
 
     @Column(name = "primary_color", length = 50)
@@ -32,6 +32,6 @@ public class Team {
     @Column(name = "secondary_color", length = 50)
     private String secondaryColor;
 
-    @Column(name = "created_at")
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 }

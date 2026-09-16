@@ -28,34 +28,35 @@ public class UserPrediction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "game_id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "game_id", nullable = false)
     private Game game;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "selected_outcome", nullable = false, length = 20)
     private PredictionOutcome selectedOutcome;
 
-    @Column(name = "point_amount")
+    @Column(name = "point_amount", nullable = false)
     private Integer pointAmount;
 
     @Column(name = "is_correct")
     private Boolean isCorrect;
 
+    @Column(nullable = false)
     private Boolean settled;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "settlement_status", nullable = false, length = 20)
     private PredictionSettlementStatus settlementStatus;
 
-    @Column(name = "created_at")
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     @Column(name = "settled_at")

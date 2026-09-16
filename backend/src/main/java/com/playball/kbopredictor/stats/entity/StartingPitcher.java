@@ -24,10 +24,16 @@ import java.time.LocalDateTime;
 @Entity
 @Table(
         name = "starting_pitchers",
-        uniqueConstraints = @UniqueConstraint(
-                name = "uk_starting_pitchers_game_side",
-                columnNames = {"game_id", "side"}
-        )
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_starting_pitchers_game_side",
+                        columnNames = {"game_id", "side"}
+                ),
+                @UniqueConstraint(
+                        name = "uk_starting_pitchers_game_team",
+                        columnNames = {"game_id", "team_id"}
+                )
+        }
 )
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

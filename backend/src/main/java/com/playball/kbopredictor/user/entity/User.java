@@ -18,34 +18,35 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(length = 255)
+    @Column(nullable = false, length = 255)
     private String email;
 
     @Column(length = 255)
     private String password;
 
-    @Column(length = 100)
+    @Column(nullable = false, length = 100)
     private String nickname;
 
-    @Column(length = 50)
+    @Column(nullable = false, length = 50)
     private String provider;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "favorite_team_id")
     private Team favoriteTeam;
 
+    @Column(nullable = false)
     private Integer point;
 
-    @Column(length = 50)
+    @Column(nullable = false, length = 50)
     private String role;
 
-    @Column(length = 50)
+    @Column(nullable = false, length = 50)
     private String status;
 
-    @Column(name = "created_at")
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     public static User createLocal(

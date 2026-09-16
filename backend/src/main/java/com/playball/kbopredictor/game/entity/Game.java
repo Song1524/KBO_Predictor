@@ -26,27 +26,28 @@ public class Game {
     @Column(name = "external_game_id", length = 30, unique = true)
     private String externalGameId;
 
+    @Column(nullable = false)
     private Integer season;
 
-    @Column(name = "game_date")
+    @Column(name = "game_date", nullable = false)
     private LocalDate gameDate;
 
     @Column(name = "game_time")
     private LocalTime gameTime;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "home_team_id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "home_team_id", nullable = false)
     private Team homeTeam;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "away_team_id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "away_team_id", nullable = false)
     private Team awayTeam;
 
     @Column(length = 100)
     private String stadium;
 
     @Enumerated(EnumType.STRING)
-    @Column(length = 50)
+    @Column(nullable = false, length = 50)
     private GameStatus status;
 
     @Column(name = "home_score")
@@ -69,10 +70,10 @@ public class Game {
     @Column(name = "cancel_reason", length = 255)
     private String cancelReason;
 
-    @Column(name = "created_at")
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     public LocalDateTime getPredictionCloseAt() {

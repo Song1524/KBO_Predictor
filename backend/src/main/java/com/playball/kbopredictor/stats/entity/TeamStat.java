@@ -26,13 +26,14 @@ public class TeamStat {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "team_id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "team_id", nullable = false)
     private Team team;
 
+    @Column(nullable = false)
     private Integer season;
 
-    @Column(name = "stat_date")
+    @Column(name = "stat_date", nullable = false)
     private LocalDate statDate;
 
     @Column(name = "official_rank")
@@ -110,7 +111,7 @@ public class TeamStat {
     @Column(name = "era", precision = 5, scale = 2)
     private BigDecimal era;
 
-    @Column(name = "collected_at")
+    @Column(name = "collected_at", nullable = false)
     private LocalDateTime collectedAt;
 
     public static TeamStat create(

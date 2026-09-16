@@ -100,7 +100,7 @@ class UserPredictionServiceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {100, 300, 500})
+    @ValueSource(ints = {100, 200, 300, 500})
     void acceptsSupportedPointAmounts(int pointAmount) {
         Game game = futureGame();
         User user = TestEntities.user(1L, 1_000);
