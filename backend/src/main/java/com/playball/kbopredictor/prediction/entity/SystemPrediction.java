@@ -59,6 +59,12 @@ public class SystemPrediction {
     @Column(name = "away_pitcher_stat_date")
     private java.time.LocalDate awayPitcherStatDate;
 
+    @Column(name = "home_starting_pitcher_kbo_player_id", length = 20)
+    private String homeStartingPitcherKboPlayerId;
+
+    @Column(name = "away_starting_pitcher_kbo_player_id", length = 20)
+    private String awayStartingPitcherKboPlayerId;
+
     @Column(name = "home_score_point", precision = 10, scale = 2)
     private BigDecimal homeScorePoint;
 
@@ -94,6 +100,8 @@ public class SystemPrediction {
             java.time.LocalDate awayStatDate,
             java.time.LocalDate homePitcherStatDate,
             java.time.LocalDate awayPitcherStatDate,
+            String homeStartingPitcherKboPlayerId,
+            String awayStartingPitcherKboPlayerId,
             String reason,
             LocalDateTime generatedAt
     ) {
@@ -108,7 +116,43 @@ public class SystemPrediction {
         this.awayStatDate = awayStatDate;
         this.homePitcherStatDate = homePitcherStatDate;
         this.awayPitcherStatDate = awayPitcherStatDate;
+        this.homeStartingPitcherKboPlayerId = homeStartingPitcherKboPlayerId;
+        this.awayStartingPitcherKboPlayerId = awayStartingPitcherKboPlayerId;
         this.reason = reason;
         this.generatedAt = generatedAt;
+    }
+
+    public void update(
+            Team predictedWinnerTeam,
+            PredictionOutcome predictedOutcome,
+            BigDecimal homeWinProbability,
+            BigDecimal drawProbability,
+            BigDecimal awayWinProbability,
+            String modelVersion,
+            BigDecimal featureCoverage,
+            java.time.LocalDate homeStatDate,
+            java.time.LocalDate awayStatDate,
+            java.time.LocalDate homePitcherStatDate,
+            java.time.LocalDate awayPitcherStatDate,
+            String reason,
+            LocalDateTime generatedAt
+    ) {
+        update(
+                predictedWinnerTeam,
+                predictedOutcome,
+                homeWinProbability,
+                drawProbability,
+                awayWinProbability,
+                modelVersion,
+                featureCoverage,
+                homeStatDate,
+                awayStatDate,
+                homePitcherStatDate,
+                awayPitcherStatDate,
+                homeStartingPitcherKboPlayerId,
+                awayStartingPitcherKboPlayerId,
+                reason,
+                generatedAt
+        );
     }
 }

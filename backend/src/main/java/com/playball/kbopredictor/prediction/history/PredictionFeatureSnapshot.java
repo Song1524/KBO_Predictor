@@ -133,6 +133,12 @@ public class PredictionFeatureSnapshot {
     @Column(name = "away_venue_win_rate", precision = 5, scale = 3)
     private BigDecimal awayVenueWinRate;
 
+    @Column(name = "home_starting_pitcher_kbo_player_id", length = 20)
+    private String homeStartingPitcherKboPlayerId;
+
+    @Column(name = "away_starting_pitcher_kbo_player_id", length = 20)
+    private String awayStartingPitcherKboPlayerId;
+
     @Column(name = "home_starting_pitcher_name", length = 100)
     private String homeStartingPitcherName;
 
@@ -235,6 +241,7 @@ public class PredictionFeatureSnapshot {
                         homeEra,
                         homeVenueWinRate,
                         pitcher(
+                                homeStartingPitcherKboPlayerId,
                                 homeStartingPitcherName,
                                 homeStartingPitcherStatDate,
                                 homeStartingPitcherEra,
@@ -257,6 +264,7 @@ public class PredictionFeatureSnapshot {
                         awayEra,
                         awayVenueWinRate,
                         pitcher(
+                                awayStartingPitcherKboPlayerId,
                                 awayStartingPitcherName,
                                 awayStartingPitcherStatDate,
                                 awayStartingPitcherEra,
@@ -294,6 +302,7 @@ public class PredictionFeatureSnapshot {
         homeEra = value.era();
         homeVenueWinRate = value.venueWinRate();
         if (value.startingPitcher() != null) {
+            homeStartingPitcherKboPlayerId = value.startingPitcher().kboPlayerId();
             homeStartingPitcherName = value.startingPitcher().playerName();
             homeStartingPitcherStatDate = value.startingPitcher().statDate();
             homeStartingPitcherEra = value.startingPitcher().era();
@@ -313,6 +322,7 @@ public class PredictionFeatureSnapshot {
         awayEra = value.era();
         awayVenueWinRate = value.venueWinRate();
         if (value.startingPitcher() != null) {
+            awayStartingPitcherKboPlayerId = value.startingPitcher().kboPlayerId();
             awayStartingPitcherName = value.startingPitcher().playerName();
             awayStartingPitcherStatDate = value.startingPitcher().statDate();
             awayStartingPitcherEra = value.startingPitcher().era();
@@ -321,6 +331,7 @@ public class PredictionFeatureSnapshot {
     }
 
     private StartingPitcherFeatures pitcher(
+            String kboPlayerId,
             String name,
             LocalDate statDate,
             BigDecimal era,
@@ -331,7 +342,7 @@ public class PredictionFeatureSnapshot {
         }
         return new StartingPitcherFeatures(
                 null,
-                null,
+                kboPlayerId,
                 name,
                 true,
                 era != null || whip != null,

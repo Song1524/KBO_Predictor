@@ -175,7 +175,8 @@ class SystemPredictionWriterTest {
                         "34.00",
                         "baseline-v1",
                         "0.850"
-                )
+                ),
+                PredictionRefreshReason.STARTER_ACQUIRED
         );
 
         assertThat(response.response().status())
@@ -184,9 +185,15 @@ class SystemPredictionWriterTest {
                 .isEqualByComparingTo("0.850");
         assertThat(current.getHomeStatDate())
                 .isEqualTo(LocalDate.of(2026, 8, 11));
+        assertThat(current.getReason()).contains("[선발 최초 확보]");
         verify(systemPredictionRepository).saveAndFlush(current);
         verify(snapshotRepository).saveAndFlush(
                 org.mockito.ArgumentMatchers.any(PredictionFeatureSnapshot.class)
+        );
+        verify(historyRecorder).recordOperational(
+                org.mockito.ArgumentMatchers.eq(current),
+                org.mockito.ArgumentMatchers.any(PredictionFeatureSnapshot.class),
+                org.mockito.ArgumentMatchers.eq(PredictionStage.STARTER_UPDATED)
         );
     }
 
@@ -236,6 +243,64 @@ class SystemPredictionWriterTest {
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any()
+        );
+    }
+
+    @Test
+    void staleWriteUpdatesWhenStarterIdentityChangesAtSameCoverageAndDates() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 12, 12, 0);
+        Game game = game(10L, LocalDate.of(2026, 8, 12), LocalTime.of(18, 30));
+        LocalDate statDate = LocalDate.of(2026, 8, 11);
+        SystemPrediction current = currentPrediction(
+                game,
+                "baseline-v1",
+                "0.850",
+                statDate,
+                statDate
+        );
+        PredictionFeatures changedStarter = features(
+                game, "CHANGED-HOME", "1002"
+        );
+        SystemPredictionWriter writer = new SystemPredictionWriter(
+                gameRepository,
+                systemPredictionRepository,
+                snapshotRepository,
+                historyRecorder,
+                clock(now)
+        );
+        when(gameRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(game));
+        when(systemPredictionRepository.findByGameId(10L))
+                .thenReturn(Optional.of(current));
+        mockSnapshotPersistence();
+
+        SystemPredictionWriteResult response = writer.writeIfStale(
+                changedStarter,
+                result(
+                        PredictionOutcome.HOME_WIN,
+                        "58.00",
+                        "8.00",
+                        "34.00",
+                        "baseline-v1",
+                        "0.850"
+                ),
+                PredictionRefreshReason.STARTER_CHANGED
+        );
+
+        assertThat(response.response().status())
+                .isEqualTo(SystemPredictionGenerationStatus.UPDATED);
+        assertThat(current.getHomeStartingPitcherKboPlayerId())
+                .isEqualTo("CHANGED-HOME");
+        assertThat(current.getFeatureCoverage()).isEqualByComparingTo("0.850");
+        assertThat(current.getReason()).contains("[선발 교체]");
+        ArgumentCaptor<PredictionFeatureSnapshot> snapshotCaptor =
+                ArgumentCaptor.forClass(PredictionFeatureSnapshot.class);
+        verify(snapshotRepository).saveAndFlush(snapshotCaptor.capture());
+        assertThat(snapshotCaptor.getValue().getHomeStartingPitcherKboPlayerId())
+                .isEqualTo("CHANGED-HOME");
+        verify(historyRecorder).recordOperational(
+                current,
+                snapshotCaptor.getValue(),
+                PredictionStage.STARTER_UPDATED
         );
     }
 
@@ -330,6 +395,8 @@ class SystemPredictionWriterTest {
                 teamStatDate,
                 pitcherStatDate,
                 pitcherStatDate,
+                "1001",
+                "1002",
                 "old prediction",
                 generatedAt
         );
@@ -337,16 +404,31 @@ class SystemPredictionWriterTest {
     }
 
     private PredictionFeatures features(Game game) {
+        return features(game, "1001", "1002");
+    }
+
+    private PredictionFeatures features(
+            Game game,
+            String homePitcherId,
+            String awayPitcherId
+    ) {
         return new PredictionFeatures(
                 game.getId(),
                 game.getGameDate(),
                 LocalDateTime.of(game.getGameDate(), game.getGameTime()),
-                teamFeatures(game.getHomeTeam()),
-                teamFeatures(game.getAwayTeam())
+                teamFeatures(game.getHomeTeam(), homePitcherId),
+                teamFeatures(game.getAwayTeam(), awayPitcherId)
         );
     }
 
     private TeamPredictionFeatures teamFeatures(Team team) {
+        return teamFeatures(team, "100" + team.getId());
+    }
+
+    private TeamPredictionFeatures teamFeatures(
+            Team team,
+            String pitcherId
+    ) {
         LocalDate statDate = LocalDate.of(2026, 8, 11);
         return new TeamPredictionFeatures(
                 team.getId(), team.getName(), true, statDate,
@@ -362,7 +444,7 @@ class SystemPredictionWriterTest {
                 new BigDecimal("0.550"),
                 new StartingPitcherFeatures(
                         team.getId() + 100,
-                        "100" + team.getId(),
+                        pitcherId,
                         team.getName() + " 선발",
                         true,
                         true,

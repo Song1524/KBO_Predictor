@@ -136,8 +136,12 @@ app:
       enabled: true
       zone: Asia/Seoul
       team-stats-cron: "0 20 6 * * *"
-      starting-pitchers-cron: "0 0 15 * * *"
-      starting-pitchers-retry-cron: "0 30 15-17 * * *"
+      starting-pitcher-poll-fixed-delay-ms: 60000
+      starting-pitcher-poll-initial-delay-ms: 15000
+      starting-pitcher-verification-fixed-delay-ms: 600000
+      starting-pitcher-verification-initial-delay-ms: 45000
+      starting-pitcher-look-ahead-fixed-delay-ms: 3600000
+      starting-pitcher-look-ahead-initial-delay-ms: 30000
       starting-pitcher-look-ahead-days: 1
       prediction-look-ahead-days: 7
   odds:

@@ -129,6 +129,32 @@ class SystemPredictionGenerationServiceTest {
     }
 
     @Test
+    void starterChangeRefreshAtPredictionCloseDoesNotRegeneratePrediction() {
+        service = new SystemPredictionGenerationService(
+                gameRepository,
+                featureService,
+                predictionEngine,
+                writer,
+                shadowPredictionService,
+                fixed(game.getPredictionCloseAt())
+        );
+        when(gameRepository.findById(10L)).thenReturn(Optional.of(game));
+
+        SystemPredictionGenerationResponse response = service.refreshStale(
+                10L, PredictionRefreshReason.STARTER_CHANGED
+        );
+
+        assertThat(response.status())
+                .isEqualTo(SystemPredictionGenerationStatus.SKIPPED_CLOSED);
+        verify(featureService, never()).build(10L);
+        verify(writer, never()).writeIfStale(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()
+        );
+    }
+
+    @Test
     void staleDateRefreshUsesConditionalWriterForScheduledPregame() {
         PredictionFeatures features = features(true);
         PredictionEngineResult prediction = result("57.00", "9.00", "34.00");
@@ -142,14 +168,22 @@ class SystemPredictionGenerationServiceTest {
         when(gameRepository.findById(10L)).thenReturn(Optional.of(game));
         when(featureService.build(10L)).thenReturn(features);
         when(predictionEngine.predict(features)).thenReturn(prediction);
-        when(writer.writeIfStale(features, prediction)).thenReturn(updated);
+        when(writer.writeIfStale(
+                features,
+                prediction,
+                PredictionRefreshReason.DATA_REFRESH
+        )).thenReturn(updated);
 
         SystemPredictionGenerationBatchResponse response =
                 service.refreshStaleForDate(game.getGameDate());
 
         assertThat(response.updatedCount()).isEqualTo(1);
         assertThat(response.skippedCount()).isZero();
-        verify(writer).writeIfStale(features, prediction);
+        verify(writer).writeIfStale(
+                features,
+                prediction,
+                PredictionRefreshReason.DATA_REFRESH
+        );
         verify(writer, never()).write(features, prediction);
         verify(shadowPredictionService).generate(features, updated);
     }
@@ -165,6 +199,7 @@ class SystemPredictionGenerationServiceTest {
                 .isEqualTo(SystemPredictionGenerationStatus.SKIPPED_NOT_SCHEDULED);
         verify(featureService, never()).build(10L);
         verify(writer, never()).writeIfStale(
+                org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any()
         );
@@ -188,6 +223,7 @@ class SystemPredictionGenerationServiceTest {
                 .isEqualTo(SystemPredictionGenerationStatus.SKIPPED_CLOSED);
         verify(featureService, never()).build(10L);
         verify(writer, never()).writeIfStale(
+                org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any()
         );

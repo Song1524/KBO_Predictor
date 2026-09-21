@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
@@ -30,6 +32,7 @@ public class PregameDataSyncScheduler {
     private final SystemPredictionGenerationService predictionGenerationService;
     private final Clock clock;
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private final Set<Long> warnedMissingAtClose = ConcurrentHashMap.newKeySet();
 
     @Value("${app.kbo-data.pregame-scheduler.starting-pitcher-look-ahead-days:1}")
     private int startingPitcherLookAheadDays;
@@ -78,25 +81,71 @@ public class PregameDataSyncScheduler {
     }
 
     @Scheduled(
-            cron = "${app.kbo-data.pregame-scheduler.starting-pitchers-cron:0 0 15 * * *}",
-            zone = "${app.kbo-data.pregame-scheduler.zone:Asia/Seoul}"
+            fixedDelayString = "${app.kbo-data.pregame-scheduler.starting-pitcher-poll-fixed-delay-ms:60000}",
+            initialDelayString = "${app.kbo-data.pregame-scheduler.starting-pitcher-poll-initial-delay-ms:15000}"
     )
-    public void syncDailyStartingPitchers() {
+    public void pollTodaysMissingStartingPitchers() {
         if (!running.compareAndSet(false, true)) {
-            log.info("KBO 경기 전 데이터 수집이 이미 실행 중이어서 선발투수를 건너뜁니다.");
+            log.info("KBO 경기 전 데이터 수집이 이미 실행 중이어서 오늘 선발투수 polling을 건너뜁니다.");
             return;
         }
+        LocalDate today = LocalDate.now(clock);
         try {
-            LocalDate today = LocalDate.now(clock);
+            pollAndRefresh(today, true);
+        } catch (RuntimeException exception) {
+            log.error(
+                    "KBO 오늘 선발투수 polling 실패 - 다음 실행에서 재시도: gameDate={}",
+                    today,
+                    exception
+            );
+        } finally {
+            running.set(false);
+        }
+    }
+
+    @Scheduled(
+            fixedDelayString = "${app.kbo-data.pregame-scheduler.starting-pitcher-verification-fixed-delay-ms:600000}",
+            initialDelayString = "${app.kbo-data.pregame-scheduler.starting-pitcher-verification-initial-delay-ms:45000}"
+    )
+    public void verifyTodaysCompleteStartingPitchers() {
+        if (!running.compareAndSet(false, true)) {
+            log.info("KBO 경기 전 데이터 수집이 이미 실행 중이어서 오늘 예고 선발 재검증을 건너뜁니다.");
+            return;
+        }
+        LocalDate today = LocalDate.now(clock);
+        try {
+            startingPitcherSyncService.verifyCompleteBeforeClose(today);
+        } catch (RuntimeException exception) {
+            log.error(
+                    "KBO 오늘 예고 선발 재검증 실패 - 다음 실행에서 재시도: gameDate={}",
+                    today,
+                    exception
+            );
+        } finally {
+            running.set(false);
+        }
+    }
+
+    @Scheduled(
+            fixedDelayString = "${app.kbo-data.pregame-scheduler.starting-pitcher-look-ahead-fixed-delay-ms:3600000}",
+            initialDelayString = "${app.kbo-data.pregame-scheduler.starting-pitcher-look-ahead-initial-delay-ms:30000}"
+    )
+    public void pollUpcomingMissingStartingPitchers() {
+        if (!running.compareAndSet(false, true)) {
+            log.info("KBO 경기 전 데이터 수집이 이미 실행 중이어서 선발투수 look-ahead polling을 건너뜁니다.");
+            return;
+        }
+        LocalDate today = LocalDate.now(clock);
+        try {
             int lookAhead = Math.max(0, startingPitcherLookAheadDays);
-            for (int offset = 0; offset <= lookAhead; offset++) {
+            for (int offset = 1; offset <= lookAhead; offset++) {
                 LocalDate target = today.plusDays(offset);
                 try {
-                    startingPitcherSyncService.sync(target);
-                    generatePredictions(target);
+                    pollAndRefresh(target, false);
+                    startingPitcherSyncService.verifyCompleteBeforeClose(target);
                 } catch (RuntimeException exception) {
                     log.error(
-                            "KBO 선발투수 자동 동기화 실패 - 다음 실행에서 재시도: gameDate={}",
+                            "KBO 선발투수 look-ahead polling 실패 - 다음 실행에서 재시도: gameDate={}",
                             target,
                             exception
                     );
@@ -107,27 +156,23 @@ public class PregameDataSyncScheduler {
         }
     }
 
-    @Scheduled(
-            cron = "${app.kbo-data.pregame-scheduler.starting-pitchers-retry-cron:0 30 15-17 * * *}",
-            zone = "${app.kbo-data.pregame-scheduler.zone:Asia/Seoul}"
-    )
-    public void retryMissingStartingPitchers() {
-        if (!running.compareAndSet(false, true)) {
-            log.info("KBO 경기 전 데이터 수집이 이미 실행 중이어서 선발투수 재시도를 건너뜁니다.");
+    private void pollAndRefresh(LocalDate date, boolean warnAtClose) {
+        StartingPitcherPollResult result =
+                startingPitcherSyncService.pollMissingBeforeClose(date);
+        if (!warnAtClose) {
             return;
         }
-        LocalDate today = LocalDate.now(clock);
-        try {
-            startingPitcherSyncService.retryMissingBeforeStart(today);
-            refreshStalePredictions(today);
-        } catch (RuntimeException exception) {
-            log.error(
-                    "KBO 미발표 선발투수 재시도 실패 - 다음 실행에서 재시도: gameDate={}",
-                    today,
-                    exception
-            );
-        } finally {
-            running.set(false);
+        for (MissingStartingPitcherGame missing : result.missingAtClose()) {
+            if (warnedMissingAtClose.add(missing.gameId())) {
+                log.warn(
+                        "예측 마감까지 선발투수를 확보하지 못했습니다: gameDate={}, gameId={}, externalGameId={}, predictionCloseAt={}, missingSides={}",
+                        date,
+                        missing.gameId(),
+                        missing.externalGameId(),
+                        missing.predictionCloseAt(),
+                        missing.missingSides()
+                );
+            }
         }
     }
 

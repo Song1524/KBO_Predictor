@@ -32,16 +32,24 @@ public class SystemPredictionGenerationService {
     private final Clock clock;
 
     public SystemPredictionGenerationResponse generate(Long gameId) {
-        return generate(gameId, false);
+        return generate(gameId, false, PredictionRefreshReason.DATA_REFRESH);
     }
 
     public SystemPredictionGenerationResponse refreshStale(Long gameId) {
-        return generate(gameId, true);
+        return refreshStale(gameId, PredictionRefreshReason.DATA_REFRESH);
+    }
+
+    public SystemPredictionGenerationResponse refreshStale(
+            Long gameId,
+            PredictionRefreshReason refreshReason
+    ) {
+        return generate(gameId, true, refreshReason);
     }
 
     private SystemPredictionGenerationResponse generate(
             Long gameId,
-            boolean staleOnly
+            boolean staleOnly,
+            PredictionRefreshReason refreshReason
     ) {
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -56,7 +64,7 @@ public class SystemPredictionGenerationService {
         PredictionFeatures features = featureService.build(gameId);
         PredictionEngineResult prediction = predictionEngine.predict(features);
         SystemPredictionWriteResult write = staleOnly
-                ? writer.writeIfStale(features, prediction)
+                ? writer.writeIfStale(features, prediction, refreshReason)
                 : writer.write(features, prediction);
         if (write.written() && !"logistic-v1".equals(prediction.modelVersion())) {
             try {
@@ -92,7 +100,11 @@ public class SystemPredictionGenerationService {
         List<SystemPredictionGenerationResponse> results = new ArrayList<>();
         for (Game game : gameRepository.findByGameDateOrderByGameTimeAsc(date)) {
             try {
-                results.add(generate(game.getId(), staleOnly));
+                results.add(generate(
+                        game.getId(),
+                        staleOnly,
+                        PredictionRefreshReason.DATA_REFRESH
+                ));
             } catch (RuntimeException exception) {
                 String message = exception.getMessage() == null
                         ? exception.getClass().getSimpleName()

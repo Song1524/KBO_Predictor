@@ -74,7 +74,7 @@ class SystemPredictionFinalizationServiceTest {
                 new BigDecimal("62.00"),
                 "baseline-v1",
                 new BigDecimal("0.650"),
-                null, null, null, null,
+                null, null, null, null, null, null,
                 "later value",
                 LocalDateTime.of(2026, 6, 15, 19, 1)
         );
@@ -130,7 +130,7 @@ class SystemPredictionFinalizationServiceTest {
                 new BigDecimal(away),
                 "baseline-v1",
                 new BigDecimal("0.650"),
-                null, null, null, null,
+                null, null, null, null, null, null,
                 "initial",
                 generatedAt
         );

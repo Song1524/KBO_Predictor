@@ -42,7 +42,9 @@ public class SystemPredictionWriter {
             PredictionFeatures features,
             PredictionEngineResult result
     ) {
-        return writeLocked(features, result, false).response();
+        return writeLocked(
+                features, result, false, PredictionRefreshReason.DATA_REFRESH
+        ).response();
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -50,7 +52,9 @@ public class SystemPredictionWriter {
             PredictionFeatures features,
             PredictionEngineResult result
     ) {
-        return writeLocked(features, result, false);
+        return writeLocked(
+                features, result, false, PredictionRefreshReason.DATA_REFRESH
+        );
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -58,13 +62,25 @@ public class SystemPredictionWriter {
             PredictionFeatures features,
             PredictionEngineResult result
     ) {
-        return writeLocked(features, result, true);
+        return writeIfStale(
+                features, result, PredictionRefreshReason.DATA_REFRESH
+        );
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SystemPredictionWriteResult writeIfStale(
+            PredictionFeatures features,
+            PredictionEngineResult result,
+            PredictionRefreshReason refreshReason
+    ) {
+        return writeLocked(features, result, true, refreshReason);
     }
 
     private SystemPredictionWriteResult writeLocked(
             PredictionFeatures features,
             PredictionEngineResult result,
-            boolean staleOnly
+            boolean staleOnly,
+            PredictionRefreshReason refreshReason
     ) {
         Game game = gameRepository.findByIdForUpdate(features.gameId())
                 .orElseThrow(() -> new ResponseStatusException(
@@ -108,7 +124,9 @@ public class SystemPredictionWriter {
                 features.away().teamStatDate(),
                 pitcherStatDate(features, true),
                 pitcherStatDate(features, false),
-                String.join("\n", result.reasons()),
+                pitcherPlayerId(features, true),
+                pitcherPlayerId(features, false),
+                predictionReason(result, staleOnly ? refreshReason : null),
                 now
         );
         systemPredictionRepository.saveAndFlush(prediction);
@@ -149,6 +167,15 @@ public class SystemPredictionWriter {
             return true;
         }
         if (isGreater(candidate.featureCoverage(), current.getFeatureCoverage())) {
+            return true;
+        }
+        if (!Objects.equals(
+                pitcherPlayerId(features, true),
+                current.getHomeStartingPitcherKboPlayerId()
+        ) || !Objects.equals(
+                pitcherPlayerId(features, false),
+                current.getAwayStartingPitcherKboPlayerId()
+        )) {
             return true;
         }
         return isNewer(features.home().teamStatDate(), current.getHomeStatDate())
@@ -237,5 +264,29 @@ public class SystemPredictionWriter {
         var pitcher = home ? features.home().startingPitcher()
                 : features.away().startingPitcher();
         return pitcher == null ? null : pitcher.statDate();
+    }
+
+    private String pitcherPlayerId(
+            PredictionFeatures features,
+            boolean home
+    ) {
+        var pitcher = home ? features.home().startingPitcher()
+                : features.away().startingPitcher();
+        return pitcher == null ? null : pitcher.kboPlayerId();
+    }
+
+    private String predictionReason(
+            PredictionEngineResult result,
+            PredictionRefreshReason refreshReason
+    ) {
+        String engineReason = result.reasons() == null
+                ? ""
+                : String.join("\n", result.reasons());
+        if (refreshReason == null || refreshReason.historyReason() == null) {
+            return engineReason;
+        }
+        return engineReason.isBlank()
+                ? refreshReason.historyReason()
+                : refreshReason.historyReason() + "\n" + engineReason;
     }
 }

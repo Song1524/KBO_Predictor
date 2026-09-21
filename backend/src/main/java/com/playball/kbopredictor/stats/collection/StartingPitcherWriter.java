@@ -1,6 +1,7 @@
 package com.playball.kbopredictor.stats.collection;
 
 import com.playball.kbopredictor.game.entity.Game;
+import com.playball.kbopredictor.game.entity.GameStatus;
 import com.playball.kbopredictor.game.repository.GameRepository;
 import com.playball.kbopredictor.player.entity.Player;
 import com.playball.kbopredictor.player.repository.PlayerRepository;
@@ -14,8 +15,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Objects;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +29,7 @@ public class StartingPitcherWriter {
     private final PlayerRepository playerRepository;
     private final StartingPitcherRepository startingPitcherRepository;
     private final PitcherStatRepository pitcherStatRepository;
+    private final Clock clock;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public StartingPitcherWriteResult upsert(
@@ -32,12 +37,38 @@ public class StartingPitcherWriter {
             LocalDate statDate,
             LocalDateTime now
     ) {
+        return write(collected, statDate, now, false).orElseThrow();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Optional<StartingPitcherWriteResult> upsertBeforeClose(
+            CollectedStartingPitcher collected,
+            LocalDate statDate
+    ) {
+        return write(collected, statDate, null, true);
+    }
+
+    private Optional<StartingPitcherWriteResult> write(
+            CollectedStartingPitcher collected,
+            LocalDate statDate,
+            LocalDateTime now,
+            boolean enforcePredictionClose
+    ) {
         Game game = gameRepository.findByExternalGameId(
                 collected.externalGameId()
         ).orElseThrow(() -> new PregameDataCollectionException(
                 "먼저 경기 일정을 동기화해야 합니다: "
                         + collected.externalGameId()
         ));
+        LocalDateTime writeAt = enforcePredictionClose
+                ? LocalDateTime.now(clock)
+                : now;
+        if (enforcePredictionClose
+                && (game.getStatus() != GameStatus.SCHEDULED
+                || game.getPredictionCloseAt() == null
+                || !writeAt.isBefore(game.getPredictionCloseAt()))) {
+            return Optional.empty();
+        }
         Team team = switch (collected.side()) {
             case HOME -> game.getHomeTeam();
             case AWAY -> game.getAwayTeam();
@@ -55,25 +86,29 @@ public class StartingPitcherWriter {
                         collected.kboPlayerId(),
                         team,
                         collected.playerName(),
-                        now
+                        writeAt
                 ));
-        player.update(team, collected.playerName(), now);
+        player.update(team, collected.playerName(), writeAt);
         player = playerRepository.save(player);
 
         StartingPitcher startingPitcher = startingPitcherRepository
                 .findByGameIdAndSide(game.getId(), collected.side())
                 .orElse(null);
         boolean inserted = startingPitcher == null;
+        boolean playerChanged = !inserted && !Objects.equals(
+                startingPitcher.getPlayer().getKboPlayerId(),
+                collected.kboPlayerId()
+        );
         if (inserted) {
             startingPitcher = StartingPitcher.create(
                     game,
                     team,
                     player,
                     collected.side(),
-                    now
+                    writeAt
             );
         } else {
-            startingPitcher.update(team, player, now);
+            startingPitcher.update(team, player, writeAt);
         }
         startingPitcherRepository.save(startingPitcher);
 
@@ -100,11 +135,17 @@ public class StartingPitcherWriter {
                     sourceStat.losses(),
                     sourceStat.innings(),
                     sourceStat.whip(),
-                    now
+                    writeAt
             );
             pitcherStatRepository.save(pitcherStat);
             pitcherStatSaved = true;
         }
-        return new StartingPitcherWriteResult(inserted, pitcherStatSaved);
+        return Optional.of(new StartingPitcherWriteResult(
+                inserted,
+                pitcherStatSaved,
+                playerChanged,
+                game.getId(),
+                collected.side()
+        ));
     }
 }
