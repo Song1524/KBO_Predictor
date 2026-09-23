@@ -2,7 +2,7 @@
 
 공식 KBO 데이터를 수집해 경기 흐름을 예측하고, 사용자의 포인트 예측을 경기 결과에 따라 자동 정산하는 서비스입니다.
 
-[운영 사이트](https://playball.ai.kr) · [코드 기반 프로젝트 분석](docs/PROJECT_ANALYSIS.md) · [면접 대비 가이드](docs/INTERVIEW_GUIDE.md)
+[운영 사이트](https://playball.ai.kr) · [코드 기반 프로젝트 분석](docs/PROJECT_ANALYSIS.md)
 
 <!-- TODO: 메인 경기 목록 + 시스템 예측 + 사용자 예측 화면 스크린샷 -->
 
