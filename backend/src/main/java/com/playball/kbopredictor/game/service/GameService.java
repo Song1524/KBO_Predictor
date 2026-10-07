@@ -61,14 +61,8 @@ public class GameService {
                         "경기를 찾을 수 없습니다."
                 ));
 
-        SystemPredictionResponse prediction = null;
-        try {
-            prediction = systemPredictionService.getPredictionByGameId(gameId);
-        } catch (ResponseStatusException exception) {
-            if (exception.getStatusCode().value() != HttpStatus.NOT_FOUND.value()) {
-                throw exception;
-            }
-        }
+        SystemPredictionResponse prediction =
+                systemPredictionService.getPredictionsByGameIds(List.of(gameId)).get(gameId);
         Map<Long, Map<StartingPitcherSide, StartingPitcher>> startingPitchers =
                 getStartingPitchersByGameId(List.of(gameId));
 

@@ -54,6 +54,8 @@ management:
       enabled: true
 
 app:
+  reconciliation:
+    max-rows: ${RECONCILIATION_MAX_ROWS:1000}
   user:
     initial-points: 1000
   prediction:
