@@ -65,6 +65,19 @@ class CommunitySecurityWebTest {
     }
 
     @Test
+    void databaseLockConflictReturnsMeaningful409() throws Exception {
+        when(communityService.updatePost(eq(USER_ID), eq(POST_ID), any()))
+                .thenThrow(new org.springframework.dao.CannotAcquireLockException("internal SQL details"));
+        mockMvc.perform(put("/api/community/posts/{postId}", POST_ID)
+                        .with(user(new AuthenticatedUser(USER_ID, "test@test.com", "hash", true,
+                                List.of(new SimpleGrantedAuthority("ROLE_USER")))))
+                        .with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"edited\",\"content\":\"edited body\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("다른 요청이 게시글을 변경하고 있습니다. 잠시 후 다시 시도해 주세요."));
+    }
+
+    @Test
     void anonymousUserCanReadPostsAndComments() throws Exception {
         when(communityService.getPopularPosts()).thenReturn(List.of(
                 new CommunityPopularPostResponse(

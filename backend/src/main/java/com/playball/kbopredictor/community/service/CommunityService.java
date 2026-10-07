@@ -138,9 +138,11 @@ public class CommunityService {
             Long postId,
             Long viewerUserId
     ) {
-        CommunityPost post = activePost(postId);
-        post.incrementViewCount();
-        return postResponse(post, viewerUserId);
+        // Perform the conditional write before any snapshot read; never flush a stale post for a view.
+        if (postRepository.incrementActiveViewCount(postId) == 0) {
+            throw notFound("게시글을 찾을 수 없습니다.");
+        }
+        return postResponse(activePost(postId), viewerUserId);
     }
 
     @Transactional
@@ -174,7 +176,7 @@ public class CommunityService {
             Long postId,
             CommunityPostRequest request
     ) {
-        CommunityPost post = activePost(postId);
+        CommunityPost post = activePostForUpdate(postId);
         if (!post.getUser().getId().equals(authenticatedUserId)) {
             throw forbidden("본인이 작성한 게시글만 수정할 수 있습니다.");
         }
@@ -184,7 +186,7 @@ public class CommunityService {
 
     @Transactional
     public void deletePost(Long authenticatedUserId, Long postId) {
-        CommunityPost post = activePost(postId);
+        CommunityPost post = activePostForUpdate(postId);
         User actor = user(authenticatedUserId);
         requireOwnerOrAdmin(post.getUser(), actor, "게시글");
         post.delete(now());
@@ -356,6 +358,11 @@ public class CommunityService {
                 postId,
                 CommunityContentStatus.ACTIVE
         ).orElseThrow(() -> notFound("게시글을 찾을 수 없습니다."));
+    }
+
+    private CommunityPost activePostForUpdate(Long postId) {
+        return postRepository.findByIdAndStatusForUpdate(postId, CommunityContentStatus.ACTIVE)
+                .orElseThrow(() -> notFound("게시글을 찾을 수 없습니다."));
     }
 
     private User user(Long userId) {

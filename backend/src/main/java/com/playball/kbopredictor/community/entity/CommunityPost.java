@@ -38,7 +38,8 @@ public class CommunityPost {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
-    @Column(name = "view_count", nullable = false)
+    // Updated only by the repository's atomic counter query, never by entity flushes.
+    @Column(name = "view_count", nullable = false, updatable = false)
     private long viewCount;
 
     @Enumerated(EnumType.STRING)
@@ -72,10 +73,6 @@ public class CommunityPost {
         this.title = title.trim();
         this.content = content.trim();
         this.updatedAt = now;
-    }
-
-    public void incrementViewCount() {
-        this.viewCount = Math.addExact(this.viewCount, 1L);
     }
 
     public void delete(LocalDateTime now) {
