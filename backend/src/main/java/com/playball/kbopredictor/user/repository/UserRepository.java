@@ -11,6 +11,14 @@ import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
+    interface SessionAccess {
+        String getRole();
+        String getStatus();
+    }
+
+    @Query("select user.role as role, user.status as status from User user where user.id = :userId")
+    Optional<SessionAccess> findSessionAccess(@Param("userId") Long userId);
+
     Optional<User> findByEmail(String email);
 
     boolean existsByEmail(String email);

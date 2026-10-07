@@ -44,6 +44,11 @@ class PredictionModelAdminControllerTest {
     @MockitoBean
     private GameModelComparisonService gameModelComparisonService;
 
+    @org.junit.jupiter.api.BeforeEach
+    void stableSessionAccess() {
+        com.playball.kbopredictor.auth.SessionAccessTestSupport.stableRole(userDetailsService);
+    }
+
     @Test
     void modelEndpointsRequireAdminRole() throws Exception {
         mockMvc.perform(post("/api/admin/predictions/models/baseline-v2/train")

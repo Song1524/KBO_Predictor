@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 type AuthMode = 'login' | 'signup'
 
 export function AppHeader() {
-  const { user, isAuthenticating, login, signup, logout } = useAuth()
+  const { user, isAuthenticating, login, signup, logout, authError: sessionError } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [isAuthOpen, setIsAuthOpen] = useState(false)
@@ -223,6 +223,7 @@ export function AppHeader() {
               >
                 로그아웃
               </Button>
+              {sessionError && <p role="alert" className="text-xs text-destructive">{sessionError}</p>}
             </div>
           ) : (
             <div className="relative">
@@ -235,7 +236,7 @@ export function AppHeader() {
                 <CircleUserRound data-icon="inline-start" />
                 로그인
               </Button>
-
+              {sessionError && <p role="alert" className="text-xs text-destructive">{sessionError}</p>}
               {isAuthOpen && (
                 <form
                   className="absolute top-10 right-0 z-30 flex w-80 flex-col gap-3 rounded-xl border bg-background p-4 shadow-lg"

@@ -12,7 +12,8 @@ import type {
   SignupRequest,
   UserApiResponse,
 } from '@/lib/api-types'
-import { apiFetch } from '@/lib/api-client'
+import { apiFetch, markAuthenticationChanged, subscribeAuthenticationFailure } from '@/lib/api-client'
+import { logoutSession, type LogoutResult } from '@/lib/auth-session'
 
 type LoginResult = {
   errorMessage: string | null
@@ -29,7 +30,8 @@ type AuthContextValue = {
   isAuthenticating: boolean
   login: (email: string, password: string) => Promise<LoginResult>
   signup: (request: SignupRequest) => Promise<string | null>
-  logout: () => Promise<void>
+  logout: () => Promise<LogoutResult>
+  authError: string | null
   refreshUser: (options?: RefreshUserOptions) => Promise<boolean>
 }
 
@@ -39,6 +41,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserApiResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isAuthenticating, setIsAuthenticating] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const authEpochRef = useRef(0)
   const lastSuccessfulRefreshAtRef = useRef(0)
   const activeRefreshRef = useRef<Promise<boolean> | null>(null)
 
@@ -55,14 +59,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (activeRefreshRef.current) return activeRefreshRef.current
 
     const request = (async () => {
+      const epoch = authEpochRef.current
       try {
         const response = await apiFetch('/api/auth/me', {
           credentials: 'include',
         })
 
         if (response.status === 401) {
-          lastSuccessfulRefreshAtRef.current = 0
-          setUser(null)
           return false
         }
         if (!response.ok) {
@@ -70,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         const data: UserApiResponse = await response.json()
+        if (epoch !== authEpochRef.current) return false
         lastSuccessfulRefreshAtRef.current = Date.now()
         setUser(data)
         return true
@@ -88,6 +92,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
   }, [])
+
+  useEffect(() => subscribeAuthenticationFailure((failure) => {
+    authEpochRef.current += 1
+    lastSuccessfulRefreshAtRef.current = 0
+    setUser(null)
+    setAuthError(failure === 'SESSION_REVOKED'
+      ? '계정 상태 또는 권한이 변경되었습니다. 다시 로그인해 주세요.'
+      : failure === 'SESSION_EXPIRED' ? '세션이 만료되었습니다. 다시 로그인해 주세요.' : null)
+  }), [])
 
   useEffect(() => {
     const restoreSession = async () => {
@@ -122,6 +135,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const loginResponse = responseBody as LoginApiResponse
+      authEpochRef.current += 1
+      markAuthenticationChanged()
+      setAuthError(null)
       lastSuccessfulRefreshAtRef.current = Date.now()
       setUser(loginResponse)
       return {
@@ -146,13 +162,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       setIsAuthenticating(true)
-      await apiFetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-      })
+      const result = await logoutSession()
+      setAuthError(result.errorMessage)
+      if (result.completed) {
+        authEpochRef.current += 1
+        markAuthenticationChanged()
+        lastSuccessfulRefreshAtRef.current = 0
+        setUser(null)
+      }
+      return result
     } finally {
-      lastSuccessfulRefreshAtRef.current = 0
-      setUser(null)
       setIsAuthenticating(false)
     }
   }
@@ -173,6 +192,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       lastSuccessfulRefreshAtRef.current = Date.now()
+      authEpochRef.current += 1
+      markAuthenticationChanged()
+      setAuthError(null)
       setUser(responseBody as UserApiResponse)
       return null
     } catch (error) {
@@ -192,6 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         signup,
         logout,
+        authError,
         refreshUser,
       }}
     >

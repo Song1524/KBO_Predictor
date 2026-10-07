@@ -58,6 +58,11 @@ class PredictionAdminControllerTest {
     @MockitoBean
     private ShadowEvaluationService shadowEvaluationService;
 
+    @org.junit.jupiter.api.BeforeEach
+    void stableSessionAccess() {
+        com.playball.kbopredictor.auth.SessionAccessTestSupport.stableRole(userDetailsService);
+    }
+
     @Test
     void predictionAdminApisRequireAdminRole() throws Exception {
         mockMvc.perform(post("/api/admin/predictions/generate")

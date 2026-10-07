@@ -39,6 +39,11 @@ class GameDataAdminWebTest {
     @MockitoBean
     private GameSyncService gameSyncService;
 
+    @org.junit.jupiter.api.BeforeEach
+    void stableSessionAccess() {
+        com.playball.kbopredictor.auth.SessionAccessTestSupport.stableRole(userDetailsService);
+    }
+
     @Test
     void unauthenticatedUserCannotSyncGames() throws Exception {
         mockMvc.perform(post("/api/admin/data/games/sync")

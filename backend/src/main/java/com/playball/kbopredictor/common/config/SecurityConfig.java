@@ -1,7 +1,8 @@
 package com.playball.kbopredictor.common.config;
 
 import com.playball.kbopredictor.auth.security.KboUserDetailsService;
-import jakarta.servlet.http.HttpServletResponse;
+import com.playball.kbopredictor.auth.security.SessionAccessValidationFilter;
+import com.playball.kbopredictor.auth.security.SecurityErrorResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -18,7 +19,6 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 
-import java.nio.charset.StandardCharsets;
 
 @Configuration
 public class SecurityConfig {
@@ -67,13 +67,16 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            SecurityContextRepository securityContextRepository
+            SecurityContextRepository securityContextRepository,
+            KboUserDetailsService userDetailsService
     ) throws Exception {
         CookieCsrfTokenRepository csrfTokenRepository =
                 CookieCsrfTokenRepository.withHttpOnlyFalse();
         csrfTokenRepository.setCookiePath("/");
 
         http
+                .addFilterAfter(new SessionAccessValidationFilter(userDetailsService),
+                        org.springframework.security.web.context.SecurityContextHolderFilter.class)
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(csrfTokenRepository)
                         .csrfTokenRequestHandler(
@@ -155,13 +158,15 @@ public class SecurityConfig {
                 )
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, exception) -> {
-                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-                            response.setContentType("application/json");
-                            response.getWriter().write(
-                                    "{\"message\":\"로그인이 필요합니다.\"}"
-                            );
+                            SecurityErrorResponse.write(response, 401,
+                                    request.getRequestedSessionId() != null ? "SESSION_EXPIRED" : "NOT_AUTHENTICATED",
+                                    "로그인이 필요합니다.");
                         })
+                        .accessDeniedHandler((request, response, exception) -> SecurityErrorResponse.write(response, 403,
+                                exception instanceof org.springframework.security.web.csrf.CsrfException
+                                        ? "CSRF_INVALID" : "FORBIDDEN",
+                                exception instanceof org.springframework.security.web.csrf.CsrfException
+                                        ? "CSRF 토큰을 다시 발급받아 주세요." : "접근 권한이 없습니다."))
                 );
 
         return http.build();

@@ -30,6 +30,11 @@ class AdminDashboardControllerTest {
     @MockitoBean KboUserDetailsService userDetailsService;
     @MockitoBean AdminDashboardService dashboardService;
 
+    @org.junit.jupiter.api.BeforeEach
+    void stableSessionAccess() {
+        com.playball.kbopredictor.auth.SessionAccessTestSupport.stableRole(userDetailsService);
+    }
+
     @Test
     void unauthenticatedAndUserRoleCannotReadSummary() throws Exception {
         mockMvc.perform(get("/api/admin/dashboard/summary"))

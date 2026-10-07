@@ -59,6 +59,11 @@ class CommunitySecurityWebTest {
     @MockitoBean
     private KboUserDetailsService userDetailsService;
 
+    @org.junit.jupiter.api.BeforeEach
+    void stableSessionAccess() {
+        com.playball.kbopredictor.auth.SessionAccessTestSupport.stableRole(userDetailsService);
+    }
+
     @Test
     void anonymousUserCanReadPostsAndComments() throws Exception {
         when(communityService.getPopularPosts()).thenReturn(List.of(

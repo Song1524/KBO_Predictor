@@ -59,6 +59,11 @@ class CommunityReportSecurityWebTest {
     @MockitoBean
     private KboUserDetailsService userDetailsService;
 
+    @org.junit.jupiter.api.BeforeEach
+    void stableSessionAccess() {
+        com.playball.kbopredictor.auth.SessionAccessTestSupport.stableRole(userDetailsService);
+    }
+
     @Test
     void anonymousUserCannotReportPostOrComment() throws Exception {
         mockMvc.perform(post("/api/community/posts/{postId}/reports", POST_ID)

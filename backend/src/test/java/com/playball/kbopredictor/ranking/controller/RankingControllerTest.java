@@ -38,6 +38,11 @@ class RankingControllerTest {
     @MockitoBean
     private KboUserDetailsService userDetailsService;
 
+    @org.junit.jupiter.api.BeforeEach
+    void stableSessionAccess() {
+        com.playball.kbopredictor.auth.SessionAccessTestSupport.stableRole(userDetailsService);
+    }
+
     @Test
     void rankingsArePublicAndDoNotExposePrivateUserFields() throws Exception {
         when(rankingService.getRankings(

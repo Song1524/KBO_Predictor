@@ -40,6 +40,11 @@ class PregameDataAdminWebTest {
     @MockitoBean
     private StartingPitcherSyncService startingPitcherSyncService;
 
+    @org.junit.jupiter.api.BeforeEach
+    void stableSessionAccess() {
+        com.playball.kbopredictor.auth.SessionAccessTestSupport.stableRole(userDetailsService);
+    }
+
     @Test
     void nonAdminCannotRunPregameSync() throws Exception {
         mockMvc.perform(post("/api/admin/data/team-stats/sync").with(csrf()))

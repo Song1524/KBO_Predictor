@@ -51,6 +51,11 @@ class CsrfCookieIntegrationTest {
     @MockitoBean
     private DailyLoginBonusService dailyLoginBonusService;
 
+    @org.junit.jupiter.api.BeforeEach
+    void stableSessionAccess() {
+        com.playball.kbopredictor.auth.SessionAccessTestSupport.stableRole(userDetailsService);
+    }
+
     @Test
     void issuedCookieAndMatchingHeaderAllowLogin() throws Exception {
         String encodedPassword = passwordEncoder.encode("test1234!");
@@ -83,7 +88,7 @@ class CsrfCookieIntegrationTest {
         Cookie csrfCookie = csrfResult.getResponse().getCookie("XSRF-TOKEN");
         assertThat(csrfCookie).isNotNull();
 
-        mockMvc.perform(post("/api/auth/login")
+        MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
                         .cookie(csrfCookie)
                         .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -94,7 +99,24 @@ class CsrfCookieIntegrationTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(USER_ID));
+                .andExpect(jsonPath("$.id").value(USER_ID)).andReturn();
+
+        var session = (org.springframework.mock.web.MockHttpSession) loginResult.getRequest().getSession(false);
+        mockMvc.perform(post("/api/auth/logout").session(session).cookie(csrfCookie)
+                        .header("X-XSRF-TOKEN", "invalid"))
+                .andExpect(status().isForbidden())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("X-Auth-Error", "CSRF_INVALID"));
+        assertThat(session.isInvalid()).isFalse();
+        // Omit the removed browser cookie so the real cookie repository issues a new token.
+        Cookie renewedToken = mockMvc.perform(get("/api/auth/csrf").session(session))
+                .andExpect(status().isNoContent()).andReturn().getResponse().getCookie("XSRF-TOKEN");
+        assertThat(renewedToken).isNotNull();
+        assertThat(renewedToken.getValue()).isNotEqualTo(csrfCookie.getValue());
+        mockMvc.perform(post("/api/auth/logout").session(session).cookie(renewedToken)
+                        .header("X-XSRF-TOKEN", renewedToken.getValue()))
+                .andExpect(status().isNoContent());
+        assertThat(session.isInvalid()).isTrue();
     }
 
     @Test

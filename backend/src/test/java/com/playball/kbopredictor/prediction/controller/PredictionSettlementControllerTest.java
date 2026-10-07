@@ -57,6 +57,11 @@ class PredictionSettlementControllerTest {
     @MockitoBean
     private GameSettlementRecoveryService recoveryService;
 
+    @org.junit.jupiter.api.BeforeEach
+    void stableSessionAccess() {
+        com.playball.kbopredictor.auth.SessionAccessTestSupport.stableRole(userDetailsService);
+    }
+
     @Test
     void unauthenticatedUserCannotSettleGame() throws Exception {
         mockMvc.perform(post(SETTLEMENT_URL, GAME_ID).with(csrf()))

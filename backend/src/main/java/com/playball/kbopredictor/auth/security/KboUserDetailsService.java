@@ -17,6 +17,10 @@ public class KboUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
 
+    public java.util.Optional<UserRepository.SessionAccess> findSessionAccess(Long userId) {
+        return userRepository.findSessionAccess(userId);
+    }
+
     @Override
     public UserDetails loadUserByUsername(String email) {
         User user = userRepository.findByEmail(email)

@@ -80,6 +80,11 @@ class AuthenticationWebTest {
     @MockitoBean
     private PointService pointService;
 
+    @org.junit.jupiter.api.BeforeEach
+    void stableSessionAccess() {
+        com.playball.kbopredictor.auth.SessionAccessTestSupport.stableRole(userDetailsService);
+    }
+
     @Test
     void unauthenticatedPredictionReturnsUnauthorized() throws Exception {
         mockMvc.perform(post("/api/user-predictions")

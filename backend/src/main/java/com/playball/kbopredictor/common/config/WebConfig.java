@@ -28,6 +28,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "OPTIONS"
                 )
                 .allowedHeaders("*")
+                .exposedHeaders("X-Auth-Error")
                 .allowCredentials(true)
                 .maxAge(3600);
     }
