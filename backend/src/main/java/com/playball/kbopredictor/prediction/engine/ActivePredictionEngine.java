@@ -30,6 +30,11 @@ public class ActivePredictionEngine implements PredictionEngine {
     }
 
     @Override
+    public String modelVersion() {
+        return engine(properties.getActiveModel()).modelVersion();
+    }
+
+    @Override
     public PredictionEngineResult predict(PredictionFeatures features) {
         return engine(properties.getActiveModel()).predict(features);
     }

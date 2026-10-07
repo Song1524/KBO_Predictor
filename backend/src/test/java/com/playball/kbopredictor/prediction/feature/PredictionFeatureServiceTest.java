@@ -93,12 +93,12 @@ class PredictionFeatureServiceTest {
         TeamStat homeStat = stat(home, GAME_DATE.minusDays(1), GAME_START.minusHours(10));
         TeamStat awayStat = stat(away, GAME_DATE.minusDays(1), GAME_START.minusHours(10));
         when(teamStatRepository
-                .findTopByTeamIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
-                        1L, GAME_DATE, GAME_START
+                .findTopByTeamIdAndSeasonAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
+                        1L, 2026, GAME_DATE, GAME_START
                 )).thenReturn(Optional.of(homeStat));
         when(teamStatRepository
-                .findTopByTeamIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
-                        2L, GAME_DATE, GAME_START
+                .findTopByTeamIdAndSeasonAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
+                        2L, 2026, GAME_DATE, GAME_START
                 )).thenReturn(Optional.of(awayStat));
         when(startingPitcherRepository.findByGameIdAndSide(
                 10L, StartingPitcherSide.HOME
@@ -118,8 +118,8 @@ class PredictionFeatureServiceTest {
                 .isEqualByComparingTo("0.667");
         assertThat(features.home().startingPitcher()).isNull();
         verify(teamStatRepository)
-                .findTopByTeamIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
-                        1L, GAME_DATE, GAME_START
+                .findTopByTeamIdAndSeasonAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
+                        1L, 2026, GAME_DATE, GAME_START
                 );
     }
 
@@ -128,12 +128,12 @@ class PredictionFeatureServiceTest {
         TeamStat homeStat = stat(home, GAME_DATE, GAME_START.minusHours(12));
         TeamStat awayStat = stat(away, GAME_DATE, GAME_START.minusHours(12));
         when(teamStatRepository
-                .findTopByTeamIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
-                        1L, GAME_DATE, GAME_START
+                .findTopByTeamIdAndSeasonAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
+                        1L, 2026, GAME_DATE, GAME_START
                 )).thenReturn(Optional.of(homeStat));
         when(teamStatRepository
-                .findTopByTeamIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
-                        2L, GAME_DATE, GAME_START
+                .findTopByTeamIdAndSeasonAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
+                        2L, 2026, GAME_DATE, GAME_START
                 )).thenReturn(Optional.of(awayStat));
 
         Player pitcher = Player.create(
@@ -156,8 +156,8 @@ class PredictionFeatureServiceTest {
                 10L, StartingPitcherSide.AWAY
         )).thenReturn(Optional.empty());
         when(pitcherStatRepository
-                .findTopByPlayerIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
-                        101L, GAME_DATE, GAME_START
+                .findTopByPlayerIdAndSeasonAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
+                        101L, 2026, GAME_DATE, GAME_START
                 )).thenReturn(Optional.of(pitcherStat));
 
         PredictionFeatures features = service.build(10L);
@@ -174,12 +174,12 @@ class PredictionFeatureServiceTest {
     @Test
     void snapshotsCollectedAfterStartAndLatePitcherStayExplicitlyMissing() {
         when(teamStatRepository
-                .findTopByTeamIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
-                        1L, GAME_DATE, GAME_START
+                .findTopByTeamIdAndSeasonAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
+                        1L, 2026, GAME_DATE, GAME_START
                 )).thenReturn(Optional.empty());
         when(teamStatRepository
-                .findTopByTeamIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
-                        2L, GAME_DATE, GAME_START
+                .findTopByTeamIdAndSeasonAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
+                        2L, 2026, GAME_DATE, GAME_START
                 )).thenReturn(Optional.empty());
         StartingPitcher late = instantiate(StartingPitcher.class);
         ReflectionTestUtils.setField(late, "firstCollectedAt", GAME_START.plusMinutes(1));
@@ -196,8 +196,9 @@ class PredictionFeatureServiceTest {
         assertThat(features.home().seasonWinRate()).isNull();
         assertThat(features.home().startingPitcher()).isNull();
         verify(pitcherStatRepository, never())
-                .findTopByPlayerIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
+                .findTopByPlayerIdAndSeasonAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
                         org.mockito.ArgumentMatchers.anyLong(),
+                        org.mockito.ArgumentMatchers.anyInt(),
                         org.mockito.ArgumentMatchers.any(),
                         org.mockito.ArgumentMatchers.any()
                 );

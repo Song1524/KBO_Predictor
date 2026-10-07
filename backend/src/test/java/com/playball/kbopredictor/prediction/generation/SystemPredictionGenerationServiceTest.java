@@ -80,25 +80,26 @@ class SystemPredictionGenerationServiceTest {
         when(featureService.build(10L))
                 .thenReturn(withoutPitcher)
                 .thenReturn(withPitcher);
-        when(predictionEngine.predict(withoutPitcher)).thenReturn(first);
-        when(predictionEngine.predict(withPitcher)).thenReturn(second);
         SystemPredictionWriteResult firstWrite = writeResult(
                 SystemPredictionGenerationStatus.CREATED, first, 101L
         );
         SystemPredictionWriteResult secondWrite = writeResult(
                 SystemPredictionGenerationStatus.UPDATED, second, 102L
         );
-        when(writer.write(withoutPitcher, first)).thenReturn(firstWrite);
-        when(writer.write(withPitcher, second)).thenReturn(secondWrite);
+        when(writer.reconcile(org.mockito.ArgumentMatchers.eq(10L), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(predictionEngine),
+                org.mockito.ArgumentMatchers.eq(PredictionRefreshReason.DATA_REFRESH)))
+                .thenAnswer(invocation -> new SystemPredictionReconciliationResult(
+                        ((java.util.function.Supplier<PredictionFeatures>) invocation.getArgument(1)).get(), firstWrite))
+                .thenAnswer(invocation -> new SystemPredictionReconciliationResult(
+                        ((java.util.function.Supplier<PredictionFeatures>) invocation.getArgument(1)).get(), secondWrite));
 
         assertThat(service.generate(10L).status())
                 .isEqualTo(SystemPredictionGenerationStatus.CREATED);
         assertThat(service.generate(10L).status())
                 .isEqualTo(SystemPredictionGenerationStatus.UPDATED);
-        verify(writer, times(2)).write(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any()
-        );
+        verify(writer, times(2)).reconcile(org.mockito.ArgumentMatchers.eq(10L), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(predictionEngine), org.mockito.ArgumentMatchers.any());
         verify(shadowPredictionService).generate(withoutPitcher, firstWrite);
         verify(shadowPredictionService).generate(withPitcher, secondWrite);
     }
@@ -167,23 +168,20 @@ class SystemPredictionGenerationServiceTest {
                 .thenReturn(List.of(game));
         when(gameRepository.findById(10L)).thenReturn(Optional.of(game));
         when(featureService.build(10L)).thenReturn(features);
-        when(predictionEngine.predict(features)).thenReturn(prediction);
-        when(writer.writeIfStale(
-                features,
-                prediction,
-                PredictionRefreshReason.DATA_REFRESH
-        )).thenReturn(updated);
+        when(writer.reconcile(org.mockito.ArgumentMatchers.eq(10L), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(predictionEngine),
+                org.mockito.ArgumentMatchers.eq(PredictionRefreshReason.DATA_REFRESH)))
+                .thenAnswer(invocation -> new SystemPredictionReconciliationResult(
+                        ((java.util.function.Supplier<PredictionFeatures>) invocation.getArgument(1)).get(), updated));
 
         SystemPredictionGenerationBatchResponse response =
                 service.refreshStaleForDate(game.getGameDate());
 
         assertThat(response.updatedCount()).isEqualTo(1);
         assertThat(response.skippedCount()).isZero();
-        verify(writer).writeIfStale(
-                features,
-                prediction,
-                PredictionRefreshReason.DATA_REFRESH
-        );
+        verify(writer).reconcile(org.mockito.ArgumentMatchers.eq(10L), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(predictionEngine),
+                org.mockito.ArgumentMatchers.eq(PredictionRefreshReason.DATA_REFRESH));
         verify(writer, never()).write(features, prediction);
         verify(shadowPredictionService).generate(features, updated);
     }

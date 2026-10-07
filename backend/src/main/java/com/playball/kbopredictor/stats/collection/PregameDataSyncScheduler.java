@@ -48,9 +48,26 @@ public class PregameDataSyncScheduler {
         }
         LocalDate today = LocalDate.now(clock);
         try {
-            refreshStalePredictions(today);
+            refreshPredictionWindow(today);
         } finally {
             running.set(false);
+        }
+    }
+
+    @Scheduled(fixedDelayString = "${app.kbo-data.pregame-scheduler.prediction-recovery-fixed-delay-ms:300000}",
+            initialDelayString = "${app.kbo-data.pregame-scheduler.prediction-recovery-initial-delay-ms:60000}")
+    public void recoverMissingOrStalePredictions() {
+        if (!running.compareAndSet(false, true)) return;
+        try {
+            refreshPredictionWindow(LocalDate.now(clock));
+        } finally {
+            running.set(false);
+        }
+    }
+
+    private void refreshPredictionWindow(LocalDate today) {
+        for (int offset = 0; offset <= Math.max(0, predictionLookAheadDays); offset++) {
+            refreshStalePredictions(today.plusDays(offset));
         }
     }
 

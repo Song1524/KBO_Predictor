@@ -16,6 +16,11 @@ public class SystemPredictionHistoryRecorder {
     private final SystemPredictionHistoryRepository historyRepository;
     private final Clock clock;
 
+    public boolean hasOperationalFinal(Long gameId) {
+        return historyRepository.existsByGameIdAndPredictionSourceAndPredictionStage(
+                gameId, PredictionSource.OPERATIONAL, PredictionStage.FINAL);
+    }
+
     public boolean recordOperational(
             SystemPrediction prediction,
             PredictionFeatureSnapshot featureSnapshot,

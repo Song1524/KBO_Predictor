@@ -12,6 +12,9 @@ public class BaselineV2PredictionEngine implements PredictionEngine {
     private final BaselineV2PredictionCalculator calculator;
 
     @Override
+    public String modelVersion() { return properties.getModelVersion(); }
+
+    @Override
     public PredictionEngineResult predict(PredictionFeatures features) {
         return calculator.predict(
                 features,

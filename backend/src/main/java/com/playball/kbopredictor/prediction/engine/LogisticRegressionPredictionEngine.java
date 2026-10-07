@@ -22,6 +22,9 @@ public class LogisticRegressionPredictionEngine implements PredictionEngine {
     }
 
     @Override
+    public String modelVersion() { return artifact.modelVersion(); }
+
+    @Override
     public PredictionEngineResult predict(PredictionFeatures features) {
         LogisticRawPrediction raw = predictRaw(features);
         Map<PredictionOutcome, BigDecimal> percentages = percentages(raw);

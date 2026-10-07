@@ -150,6 +150,8 @@ app:
       starting-pitcher-look-ahead-initial-delay-ms: 30000
       starting-pitcher-look-ahead-days: 1
       prediction-look-ahead-days: 7
+      prediction-recovery-fixed-delay-ms: 300000
+      prediction-recovery-initial-delay-ms: 60000
   odds:
     max: 10.00
     closing-scheduler:

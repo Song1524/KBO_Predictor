@@ -131,8 +131,20 @@ class PregameDataSyncSchedulerTest {
         scheduler.refreshStalePredictionsAfterStartup();
 
         verify(predictionGenerationService).refreshStaleForDate(today);
+        verify(predictionGenerationService).refreshStaleForDate(today.plusDays(1));
         verify(startingPitcherSyncService, never())
                 .pollMissingBeforeClose(today);
+    }
+
+    @Test
+    void recoveryChecksConfiguredDatesEvenWhenDailyStatsCollectionFailed() {
+        org.mockito.Mockito.doThrow(new IllegalStateException("temporary collection failure"))
+                .when(teamStatsSyncService).syncToday();
+        scheduler.syncDailyTeamStats();
+        scheduler.recoverMissingOrStalePredictions();
+        verify(predictionGenerationService, never()).generateForDate(today);
+        verify(predictionGenerationService).refreshStaleForDate(today);
+        verify(predictionGenerationService).refreshStaleForDate(today.plusDays(1));
     }
 
     private StartingPitcherPollResult pollResult(

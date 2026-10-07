@@ -22,6 +22,9 @@ public class BaselinePredictionEngine implements PredictionEngine {
     private final BaselineV1ModelProperties properties;
 
     @Override
+    public String modelVersion() { return properties.getModelVersion(); }
+
+    @Override
     public PredictionEngineResult predict(PredictionFeatures features) {
         TeamPredictionFeatures home = features.home();
         TeamPredictionFeatures away = features.away();

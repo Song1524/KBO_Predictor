@@ -2,6 +2,7 @@ package com.playball.kbopredictor.prediction.history;
 
 import com.playball.kbopredictor.game.entity.Game;
 import com.playball.kbopredictor.prediction.feature.PredictionFeatures;
+import com.playball.kbopredictor.prediction.feature.PredictionInputFingerprint;
 import com.playball.kbopredictor.prediction.feature.StartingPitcherFeatures;
 import com.playball.kbopredictor.prediction.feature.TeamPredictionFeatures;
 import jakarta.persistence.*;
@@ -204,7 +205,8 @@ public class PredictionFeatureSnapshot {
         snapshot.game = game;
         snapshot.featureAsOf = featureAsOf;
         snapshot.generationMethod = PredictionGenerationMethod.OPERATIONAL_PREGAME;
-        snapshot.dataSource = "PredictionFeatureService pregame snapshot";
+        snapshot.dataSource = "PredictionFeatureService pregame snapshot; input-v1-sha256="
+                + PredictionInputFingerprint.of(features);
         snapshot.missingFeatures = String.join(",", missingFeatures(features));
         snapshot.homeHistoricalGameCount = features.home().teamStatsAvailable() ? 1 : 0;
         snapshot.awayHistoricalGameCount = features.away().teamStatsAvailable() ? 1 : 0;
@@ -272,6 +274,12 @@ public class PredictionFeatureSnapshot {
                         )
                 )
         );
+    }
+
+    public boolean usesOperationalInput(PredictionFeatures features) {
+        return generationMethod == PredictionGenerationMethod.OPERATIONAL_PREGAME
+                && dataSource != null
+                && dataSource.endsWith("; input-v1-sha256=" + PredictionInputFingerprint.of(features));
     }
 
     public List<String> missingFeatureList() {

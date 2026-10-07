@@ -61,8 +61,9 @@ public class PredictionFeatureService {
             LocalDateTime gameStartAt
     ) {
         TeamStat stat = teamStatRepository
-                .findTopByTeamIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
+                .findTopByTeamIdAndSeasonAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
                         team.getId(),
+                        game.getSeason(),
                         game.getGameDate(),
                         gameStartAt
                 )
@@ -129,8 +130,9 @@ public class PredictionFeatureService {
         }
 
         PitcherStat stat = pitcherStatRepository
-                .findTopByPlayerIdAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
+                .findTopByPlayerIdAndSeasonAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
                         startingPitcher.getPlayer().getId(),
+                        game.getSeason(),
                         game.getGameDate(),
                         gameStartAt
                 )

@@ -219,6 +219,10 @@ class SystemPredictionWriterTest {
         when(gameRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(game));
         when(systemPredictionRepository.findByGameId(10L))
                 .thenReturn(Optional.of(current));
+        when(snapshotRepository.findTopByGameIdAndGenerationMethodOrderByFeatureAsOfDescIdDesc(
+                10L, com.playball.kbopredictor.prediction.history.PredictionGenerationMethod.OPERATIONAL_PREGAME))
+                .thenReturn(Optional.of(PredictionFeatureSnapshot.createOperational(
+                        game, features(game), now, now)));
 
         SystemPredictionWriteResult response = writer.writeIfStale(
                 features(game),

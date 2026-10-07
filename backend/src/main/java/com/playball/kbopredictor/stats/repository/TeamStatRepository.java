@@ -14,6 +14,9 @@ import java.time.LocalDateTime;
 
 public interface TeamStatRepository extends JpaRepository<TeamStat, Long> {
 
+    Optional<TeamStat> findTopByTeamIdAndSeasonAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
+            Long teamId, Integer season, LocalDate cutoffInclusive, LocalDateTime availableBefore);
+
     Optional<TeamStat> findTopByTeamIdOrderByStatDateDesc(Long teamId);
 
     Optional<TeamStat> findByTeamIdAndSeasonAndStatDate(

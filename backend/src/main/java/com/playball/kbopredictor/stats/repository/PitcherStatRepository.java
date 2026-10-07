@@ -9,6 +9,9 @@ import java.util.Optional;
 
 public interface PitcherStatRepository extends JpaRepository<PitcherStat, Long> {
 
+    Optional<PitcherStat> findTopByPlayerIdAndSeasonAndStatDateLessThanEqualAndCollectedAtBeforeOrderByStatDateDescCollectedAtDesc(
+            Long playerId, Integer season, LocalDate cutoffInclusive, LocalDateTime availableBefore);
+
     Optional<PitcherStat> findByPlayerIdAndSeasonAndStatDate(
             Long playerId,
             Integer season,

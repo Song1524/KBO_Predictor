@@ -4,7 +4,6 @@ import com.playball.kbopredictor.game.entity.Game;
 import com.playball.kbopredictor.game.entity.GameStatus;
 import com.playball.kbopredictor.game.repository.GameRepository;
 import com.playball.kbopredictor.prediction.engine.PredictionEngine;
-import com.playball.kbopredictor.prediction.engine.PredictionEngineResult;
 import com.playball.kbopredictor.prediction.feature.PredictionFeatureService;
 import com.playball.kbopredictor.prediction.feature.PredictionFeatures;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +31,7 @@ public class SystemPredictionGenerationService {
     private final Clock clock;
 
     public SystemPredictionGenerationResponse generate(Long gameId) {
-        return generate(gameId, false, PredictionRefreshReason.DATA_REFRESH);
+        return generate(gameId, PredictionRefreshReason.DATA_REFRESH);
     }
 
     public SystemPredictionGenerationResponse refreshStale(Long gameId) {
@@ -43,12 +42,11 @@ public class SystemPredictionGenerationService {
             Long gameId,
             PredictionRefreshReason refreshReason
     ) {
-        return generate(gameId, true, refreshReason);
+        return generate(gameId, refreshReason);
     }
 
     private SystemPredictionGenerationResponse generate(
             Long gameId,
-            boolean staleOnly,
             PredictionRefreshReason refreshReason
     ) {
         Game game = gameRepository.findById(gameId)
@@ -56,17 +54,16 @@ public class SystemPredictionGenerationService {
                         HttpStatus.NOT_FOUND,
                         "경기를 찾을 수 없습니다."
                 ));
-        SystemPredictionGenerationResponse precheck = precheck(game, staleOnly);
+        SystemPredictionGenerationResponse precheck = precheck(game);
         if (precheck != null) {
             return precheck;
         }
 
-        PredictionFeatures features = featureService.build(gameId);
-        PredictionEngineResult prediction = predictionEngine.predict(features);
-        SystemPredictionWriteResult write = staleOnly
-                ? writer.writeIfStale(features, prediction, refreshReason)
-                : writer.write(features, prediction);
-        if (write.written() && !"logistic-v1".equals(prediction.modelVersion())) {
+        SystemPredictionReconciliationResult reconciled = writer.reconcile(
+                gameId, () -> featureService.build(gameId), predictionEngine, refreshReason);
+        PredictionFeatures features = reconciled.features();
+        SystemPredictionWriteResult write = reconciled.write();
+        if (write.written() && !"logistic-v1".equals(write.response().modelVersion())) {
             try {
                 shadowPredictionService.generate(features, write);
             } catch (RuntimeException exception) {
@@ -84,25 +81,23 @@ public class SystemPredictionGenerationService {
     public SystemPredictionGenerationBatchResponse generateForDate(
             LocalDate date
     ) {
-        return generateForDate(date, false);
+        return reconcileForDate(date);
     }
 
     public SystemPredictionGenerationBatchResponse refreshStaleForDate(
             LocalDate date
     ) {
-        return generateForDate(date, true);
+        return reconcileForDate(date);
     }
 
-    private SystemPredictionGenerationBatchResponse generateForDate(
-            LocalDate date,
-            boolean staleOnly
+    private SystemPredictionGenerationBatchResponse reconcileForDate(
+            LocalDate date
     ) {
         List<SystemPredictionGenerationResponse> results = new ArrayList<>();
         for (Game game : gameRepository.findByGameDateOrderByGameTimeAsc(date)) {
             try {
                 results.add(generate(
                         game.getId(),
-                        staleOnly,
                         PredictionRefreshReason.DATA_REFRESH
                 ));
             } catch (RuntimeException exception) {
@@ -137,8 +132,7 @@ public class SystemPredictionGenerationService {
     }
 
     private SystemPredictionGenerationResponse precheck(
-            Game game,
-            boolean staleOnly
+            Game game
     ) {
         if (game.getStatus() != GameStatus.SCHEDULED) {
             return SystemPredictionGenerationResponse.skipped(
@@ -148,15 +142,15 @@ public class SystemPredictionGenerationService {
             );
         }
         LocalDateTime now = LocalDateTime.now(clock);
-        if (staleOnly && (game.getGameDate() == null
+        if (game.getGameDate() == null
                 || game.getGameTime() == null
                 || !now.isBefore(LocalDateTime.of(
                 game.getGameDate(), game.getGameTime()
-        )))) {
+        ))) {
             return SystemPredictionGenerationResponse.skipped(
                     game.getId(),
                     SystemPredictionGenerationStatus.SKIPPED_CLOSED,
-                    "Stale predictions are refreshed only before game start."
+                    "System predictions are reconciled only before game start."
             );
         }
         LocalDateTime closeAt = game.getPredictionCloseAt();
