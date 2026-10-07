@@ -30,6 +30,16 @@ public class GameUpsertService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public GameUpsertResult upsert(CollectedGame collectedGame) {
+        return doUpsert(collectedGame);
+    }
+
+    /** Recovery already holds the game lock; result update and settlement must share it. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public GameUpsertResult upsertWithinTransaction(CollectedGame collectedGame) {
+        return doUpsert(collectedGame);
+    }
+
+    private GameUpsertResult doUpsert(CollectedGame collectedGame) {
         validateConfirmedFinalScore(collectedGame);
         Team homeTeam = getTeam(collectedGame.homeTeamCode());
         Team awayTeam = getTeam(collectedGame.awayTeamCode());

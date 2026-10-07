@@ -16,6 +16,27 @@ import java.util.Optional;
 
 public interface GameRepository extends JpaRepository<Game, Long> {
 
+    @Query("""
+            select game from Game game
+            join fetch game.homeTeam
+            join fetch game.awayTeam
+            where game.gameDate between :from and :today
+              and (game.gameDate < :today or game.gameTime <= :time)
+              and exists (select prediction.id from UserPrediction prediction
+                          where prediction.game = game and prediction.settled = false)
+              and not exists (select prediction.id from UserPrediction prediction
+                              where prediction.game = game and prediction.settled = true)
+              and not exists (select settlement.id from GameSettlement settlement
+                              where settlement.game = game)
+            order by game.updatedAt asc, game.id asc
+            """)
+    List<Game> findAutomaticSettlementRecoveryCandidates(
+            @Param("from") LocalDate from,
+            @Param("today") LocalDate today,
+            @Param("time") java.time.LocalTime time,
+            Pageable pageable
+    );
+
     interface StatusCount {
         GameStatus getStatus();
         long getCount();

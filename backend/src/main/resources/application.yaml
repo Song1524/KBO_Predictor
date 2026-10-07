@@ -118,6 +118,12 @@ app:
       max-reasons: 4
       operational-extra-features-enabled: false
   kbo-data:
+    settlement-recovery:
+      enabled: true
+      fixed-delay-ms: 300000
+      initial-delay-ms: 60000
+      lookback-days: 14
+      max-games: 100
     base-url: https://www.koreabaseball.com
     regular-series-ids: 0,9,6
     connect-timeout-ms: 3000

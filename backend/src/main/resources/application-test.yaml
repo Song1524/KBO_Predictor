@@ -29,6 +29,8 @@ app:
     history-finalization-scheduler:
       enabled: false
   kbo-data:
+    settlement-recovery:
+      enabled: false
     sync-scheduler:
       enabled: false
     pregame-scheduler:
